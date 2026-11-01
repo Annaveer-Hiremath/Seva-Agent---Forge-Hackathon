@@ -425,12 +425,6 @@ with tab_runner:
             status_box.error(f"Execution Error: {str(ex)}")
         finally:
             loop.close()
-            st.session_state["audit_ledger"] = graph.audit
-            status_box.success("🎉 SevaAgent Application Execution Finished Successfully!")
-        except Exception as ex:
-            status_box.error(f"Execution Error: {str(ex)}")
-        finally:
-            loop.close()
 
     # Display results if last_state exists
     state: OrchestrationState = st.session_state.get("last_state")
