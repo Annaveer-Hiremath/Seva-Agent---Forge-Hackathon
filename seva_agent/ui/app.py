@@ -66,6 +66,21 @@ if GEMINI_API_KEY:
     os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
 
 
+@st.cache_resource(show_spinner=False)
+def ensure_cloud_environment_ready():
+    """Proactively ensures Chromium binaries are cached on cloud environments like Streamlit Community Cloud."""
+    import sys
+    import subprocess
+    if sys.platform != "win32":
+        try:
+            subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
+        except Exception:
+            pass
+    return True
+
+ensure_cloud_environment_ready()
+
+
 def ensure_portal_server_running(host="127.0.0.1", port=8765):
     """Ensures the high-fidelity National Scholarship Portal emulator server is online."""
     try:

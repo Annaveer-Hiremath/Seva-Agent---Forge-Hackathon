@@ -52,10 +52,31 @@ class BrowserAutomationAgent:
         """Launches Playwright Chromium with real-world user-agent and viewport."""
         if not self.playwright:
             self.playwright = await async_playwright().start()
-            self.browser = await self.playwright.chromium.launch(
-                headless=self.headless,
-                args=["--disable-blink-features=AutomationControlled", "--no-sandbox"]
-            )
+            browser_args = [
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-gpu",
+                "--disable-dev-shm-usage"
+            ]
+            try:
+                self.browser = await self.playwright.chromium.launch(
+                    headless=self.headless,
+                    args=browser_args
+                )
+            except Exception as e:
+                err_msg = str(e).lower()
+                if "playwright install" in err_msg or "executable doesn't exist" in err_msg:
+                    import subprocess
+                    import sys
+                    # Auto-download Chromium binaries if running in cloud container (Streamlit Cloud, Linux)
+                    subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
+                    self.browser = await self.playwright.chromium.launch(
+                        headless=self.headless,
+                        args=browser_args
+                    )
+                else:
+                    raise e
+
             self.context = await self.browser.new_context(
                 viewport={"width": 1280, "height": 900},
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
