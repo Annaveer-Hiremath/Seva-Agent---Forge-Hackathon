@@ -1,0 +1,34 @@
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Playwright & Browser artifacts
+test_output.pdf
+*.pdf
+
+# Emulator dynamic runtime data
+seva_agent/portal/emulator/data/captchas/*
+!seva_agent/portal/emulator/data/captchas/.gitkeep
+seva_agent/portal/emulator/data/uploads/*
+!seva_agent/portal/emulator/data/uploads/.gitkeep
+
+# Storage runtime logs & screenshots (keep directory structures)
+storage/screenshots/*.png
+!storage/screenshots/.gitkeep
+storage/audit_logs/*.json
+!storage/audit_logs/.gitkeep
+storage/*.db
+storage/*.db-journal
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

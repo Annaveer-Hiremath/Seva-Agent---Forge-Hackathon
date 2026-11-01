@@ -1,0 +1,8 @@
+STATE BANK OF INDIA - PASSBOOK
+BRANCH: VIDYARANYAPURA, BENGALURU
+
+Account Holder: Priya Ramesh Sharma
+Account Number: 38920194819
+IFSC Code: SBIN0001248
+MICR: 560002041
+DBT Enabled: YES (Aadhaar Seeded)
