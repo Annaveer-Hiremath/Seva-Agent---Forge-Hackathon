@@ -51,6 +51,20 @@ from seva_agent.agents.doc_intel import DocumentIntelligenceAgent
 from seva_agent.portal.emulator.app import nsp_emulator_app
 from sample_data.sample_profile import create_sample_profile
 
+import streamlit as st
+import os
+
+try:
+    GEMINI_API_KEY = st.secrets.get(
+        "GEMINI_API_KEY",
+        os.getenv("GEMINI_API_KEY", "")
+    )
+except Exception:
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+if GEMINI_API_KEY:
+    os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
+
 
 def ensure_portal_server_running(host="127.0.0.1", port=8765):
     """Ensures the high-fidelity National Scholarship Portal emulator server is online."""
@@ -221,23 +235,9 @@ with st.sidebar:
     )
     auto_solve_hitl = ("Auto-HITL" in automation_mode)
 
-    with st.expander("🔑 LLM Reasoning API Key (Gemini)", expanded=not bool(os.getenv("GEMINI_API_KEY"))):
-        curr_key = os.getenv("GEMINI_API_KEY", "")
-        entered_key = st.text_input(
-            "Gemini API Key",
-            value=curr_key,
-            type="password",
-            placeholder="AIzaSy...",
-            help="Get your free key from https://aistudio.google.com/app/apikey. If left blank, SevaAgent uses its deterministic cognitive semantic engine."
-        )
-        if entered_key:
-            os.environ["GEMINI_API_KEY"] = entered_key
-            st.caption("🟢 **Gemini 1.5 Flash Active**: Autonomous LLM browser decisions enabled.")
-        else:
-            st.caption("🟡 **Cognitive Semantic Engine Active**: Autonomous deterministic decision matrix.")
-
     st.markdown("---")
     st.markdown("### 📊 Live System Status")
+    st.write(f"**LLM Reasoning:** `{'Gemini 1.5 Flash (Active)' if os.getenv('GEMINI_API_KEY') else 'Cognitive Semantic Core'}`")
     st.write(f"**Target Mode:** `{execution_mode.value}`")
     st.write(f"**Data Policy:** Zero Dummy Data Compliant")
     st.write(f"**Playwright Browser:** Ready (Chromium)")
