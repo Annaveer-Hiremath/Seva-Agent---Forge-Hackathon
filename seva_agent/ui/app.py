@@ -213,6 +213,21 @@ with st.sidebar:
     )
     auto_solve_hitl = ("Auto-HITL" in automation_mode)
 
+    with st.expander("🔑 LLM Reasoning API Key (Gemini)", expanded=not bool(os.getenv("GEMINI_API_KEY"))):
+        curr_key = os.getenv("GEMINI_API_KEY", "")
+        entered_key = st.text_input(
+            "Gemini API Key",
+            value=curr_key,
+            type="password",
+            placeholder="AIzaSy...",
+            help="Get your free key from https://aistudio.google.com/app/apikey. If left blank, SevaAgent uses its deterministic cognitive semantic engine."
+        )
+        if entered_key:
+            os.environ["GEMINI_API_KEY"] = entered_key
+            st.caption("🟢 **Gemini 1.5 Flash Active**: Autonomous LLM browser decisions enabled.")
+        else:
+            st.caption("🟡 **Cognitive Semantic Engine Active**: Autonomous deterministic decision matrix.")
+
     st.markdown("---")
     st.markdown("### 📊 Live System Status")
     st.write(f"**Target Mode:** `{execution_mode.value}`")
