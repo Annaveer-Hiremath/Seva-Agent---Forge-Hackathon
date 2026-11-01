@@ -38,6 +38,12 @@ async def global_exception_handler(request, exc):
 
 discovery_agent = ScholarshipDiscoveryAgent()
 
+# Static Assets Mount for Vercel CDN collection
+from fastapi.staticfiles import StaticFiles
+STATIC_DIR = BASE_DIR / "static"
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
 
 @app.get("/", response_class=HTMLResponse)
 def root():
