@@ -40,44 +40,69 @@ class DocumentIntelligenceAgent:
     def process_document(self, file_path: str, expected_type: Optional[DocumentType] = None) -> ExtractedDocumentData:
         """
         Parses a document file (image or text), identifies its type,
-        extracts key-value pairs, and scores confidence.
+        extracts key-value pairs, and scores confidence with full crash resilience.
         """
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Document file not found: {file_path}")
+        if not file_path or not os.path.exists(file_path):
+            doc_type = expected_type or DocumentType.COLLEGE_BONAFIDE
+            return ExtractedDocumentData(
+                doc_type=doc_type,
+                file_path=str(file_path or "missing_file"),
+                confidence_score=0.0,
+                extracted_fields={},
+                raw_text="",
+                is_verified=False,
+                validation_notes=[f"Document file not found or inaccessible: {file_path}"]
+            )
 
-        raw_text = self._extract_raw_text(file_path)
-        doc_type = expected_type or self._infer_document_type(raw_text)
+        try:
+            raw_text = self._extract_raw_text(file_path)
+            doc_type = expected_type or self._infer_document_type(raw_text)
+            extracted_fields, confidence, notes = self._parse_fields(raw_text, doc_type)
 
-        extracted_fields, confidence, notes = self._parse_fields(raw_text, doc_type)
-
-        return ExtractedDocumentData(
-            doc_type=doc_type,
-            file_path=str(file_path),
-            confidence_score=confidence,
-            extracted_fields=extracted_fields,
-            raw_text=raw_text,
-            is_verified=(confidence >= 0.85),
-            validation_notes=notes
-        )
+            return ExtractedDocumentData(
+                doc_type=doc_type,
+                file_path=str(file_path),
+                confidence_score=confidence,
+                extracted_fields=extracted_fields,
+                raw_text=raw_text,
+                is_verified=(confidence >= 0.85),
+                validation_notes=notes
+            )
+        except Exception as e:
+            doc_type = expected_type or DocumentType.COLLEGE_BONAFIDE
+            return ExtractedDocumentData(
+                doc_type=doc_type,
+                file_path=str(file_path),
+                confidence_score=0.0,
+                extracted_fields={},
+                raw_text="",
+                is_verified=False,
+                validation_notes=[f"Error processing document: {str(e)}"]
+            )
 
     def _extract_raw_text(self, file_path: str) -> str:
-        """Extracts text content from file or reads text companion."""
-        path = Path(file_path)
-        # If it's a text file or JSON
-        if path.suffix.lower() in [".txt", ".json", ".csv"]:
-            with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                return f.read()
+        """Extracts text content from file or reads text companion safely."""
+        try:
+            path = Path(file_path)
+            if not path.exists():
+                return ""
 
-        # If it's an image (.png, .jpg, .jpeg)
-        # Check if there is an accompanying .txt file with OCR ground truth
-        companion_txt = path.with_suffix(".txt")
-        if companion_txt.exists():
-            with open(companion_txt, "r", encoding="utf-8") as f:
-                return f.read()
+            # If it's a text file or JSON
+            if path.suffix.lower() in [".txt", ".json", ".csv"]:
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                    return f.read()
 
-        # If no companion, perform regex-based pattern fallback or lightweight analysis
-        # For our generated test images, we embed metadata or OCR strings
-        return f"[OCR Text from {path.name}]"
+            # If it's an image (.png, .jpg, .jpeg)
+            # Check if there is an accompanying .txt file with OCR ground truth
+            companion_txt = path.with_suffix(".txt")
+            if companion_txt.exists():
+                with open(companion_txt, "r", encoding="utf-8") as f:
+                    return f.read()
+
+            # If no companion, perform regex-based pattern fallback or lightweight analysis
+            return f"[OCR Text from {path.name}]"
+        except Exception:
+            return ""
 
     def _infer_document_type(self, text: str) -> DocumentType:
         """Infers document type from textual keywords and headers."""

@@ -362,69 +362,88 @@ with tab_runner:
         st.caption(f"Target: `{portal_url_to_use}` | Mode: `{execution_mode.value}` | Security Gate: {'Auto-Solve (Demo)' if auto_solve_hitl else 'Human-in-the-Loop on CAPTCHA/OTP'}")
 
     if start_exec:
-        if execution_mode == ExecutionMode.TEST_EMULATOR:
-            ensure_portal_server_running()
-
-        status_card = st.container()
-        with status_card:
-            st.markdown("#### ⚡ Live Autonomous Application Execution")
-            progress_bar = st.progress(0.05)
-            status_box = st.info("🔄 Initializing Multi-Agent StateGraph & Playwright browser...")
-            milestone_text = st.markdown("**Current Milestone:** Initializing Intake & Security Session...")
-            
-            col_live_ss, col_live_log = st.columns([1, 1])
-            with col_live_ss:
-                st.markdown("##### 📸 Live Portal View")
-                live_screenshot = st.empty()
-            with col_live_log:
-                st.markdown("##### 📝 Live Agent Decision Stream")
-                live_log = st.empty()
-
-        def on_agent_update(st_obj, latest_entry):
-            try:
-                if st_obj.plan_steps and len(st_obj.plan_steps) > 0:
-                    step_idx = min(st_obj.current_step_index, len(st_obj.plan_steps) - 1)
-                    pct = min(max(float(step_idx + 1) / float(len(st_obj.plan_steps)), 0.05), 0.98)
-                    progress_bar.progress(pct)
-                    milestone_text.markdown(f"**Milestone {step_idx+1}/{len(st_obj.plan_steps)}:** `{st_obj.plan_steps[step_idx]}`")
-                status_box.markdown(f"**Latest Agent Action:** `{latest_entry}`")
-                if st_obj.last_screenshot_path and os.path.exists(st_obj.last_screenshot_path):
-                    live_screenshot.image(st_obj.last_screenshot_path, caption="Live Government Portal View", use_container_width=True)
-                recent_logs = "\n".join(st_obj.logs[-10:])
-                live_log.code(recent_logs, language="text")
-            except Exception:
-                pass
-
-        graph = SevaAgentGraph(session_id=f"live_run_{int(time.time()*1000)}")
-
-        # Run async workflow with proper Windows Proactor loop
-        if sys.platform == "win32":
-            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-            loop = asyncio.ProactorEventLoop()
+        curr_prof: CitizenProfile = st.session_state["profile"]
+        if not (curr_prof.full_name or "").strip() or not (curr_prof.aadhaar_number or "").strip():
+            st.error("⚠️ Pre-flight Validation: 'Full Name' and 'Aadhaar Number' cannot be empty. Please configure valid student details in Tab 1.")
         else:
-            loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+            if execution_mode == ExecutionMode.TEST_EMULATOR:
+                ensure_portal_server_running()
 
-        try:
-            with st.spinner("SevaAgent autonomous agents active..."):
-                final_state = loop.run_until_complete(
-                    graph.run(
-                        profile=st.session_state["profile"],
-                        selected_scheme_id=target_scheme_obj.scheme_id,
-                        execution_mode=execution_mode,
-                        simulate_adaptive_recovery=trigger_layout_shift,
-                        auto_solve_hitl=auto_solve_hitl,
-                        on_step=on_agent_update
+            status_card = st.container()
+            with status_card:
+                st.markdown("#### ⚡ Live Autonomous Application Execution")
+                progress_bar = st.progress(0.05)
+                status_box = st.info("🔄 Initializing Multi-Agent StateGraph & Playwright browser...")
+                milestone_text = st.markdown("**Current Milestone:** Initializing Intake & Security Session...")
+                
+                col_live_ss, col_live_log = st.columns([1, 1])
+                with col_live_ss:
+                    st.markdown("##### 📸 Live Portal View")
+                    live_screenshot = st.empty()
+                with col_live_log:
+                    st.markdown("##### 📝 Live Agent Decision Stream")
+                    live_log = st.empty()
+
+            def on_agent_update(st_obj, latest_entry):
+                try:
+                    if st_obj.plan_steps and len(st_obj.plan_steps) > 0:
+                        step_idx = min(st_obj.current_step_index, len(st_obj.plan_steps) - 1)
+                        pct = min(max(float(step_idx + 1) / float(len(st_obj.plan_steps)), 0.05), 0.98)
+                        progress_bar.progress(pct)
+                        milestone_text.markdown(f"**Milestone {step_idx+1}/{len(st_obj.plan_steps)}:** `{st_obj.plan_steps[step_idx]}`")
+                    status_box.markdown(f"**Latest Agent Action:** `{latest_entry}`")
+                    if st_obj.last_screenshot_path and os.path.exists(st_obj.last_screenshot_path):
+                        live_screenshot.image(st_obj.last_screenshot_path, caption="Live Government Portal View", use_container_width=True)
+                    recent_logs = "\n".join(st_obj.logs[-10:])
+                    live_log.code(recent_logs, language="text")
+                except Exception:
+                    pass
+
+            graph = SevaAgentGraph(session_id=f"live_run_{int(time.time()*1000)}")
+
+            # Run async workflow with proper Windows Proactor loop
+            if sys.platform == "win32":
+                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+                loop = asyncio.ProactorEventLoop()
+            else:
+                loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            try:
+                with st.spinner("SevaAgent autonomous agents active..."):
+                    final_state = loop.run_until_complete(
+                        graph.run(
+                            profile=st.session_state["profile"],
+                            selected_scheme_id=target_scheme_obj.scheme_id,
+                            execution_mode=execution_mode,
+                            simulate_adaptive_recovery=trigger_layout_shift,
+                            auto_solve_hitl=auto_solve_hitl,
+                            on_step=on_agent_update
+                        )
                     )
-                )
-            progress_bar.progress(1.0)
-            st.session_state["last_state"] = final_state
-            st.session_state["audit_ledger"] = graph.audit
-            status_box.success("🎉 SevaAgent Application Execution Finished Successfully!")
-        except Exception as ex:
-            status_box.error(f"Execution Error: {str(ex)}")
-        finally:
-            loop.close()
+                progress_bar.progress(1.0)
+                st.session_state["last_state"] = final_state
+                st.session_state["audit_ledger"] = graph.audit
+
+                if final_state.current_workflow_state == WorkflowState.SUBMITTED:
+                    status_box.success(f"🎉 Application Submitted Successfully! Simulated ID: {final_state.application_id}")
+                elif final_state.security_boundary_reason:
+                    status_box.info(f"🛡️ Live Portal Verification Complete: Reached Official Government Boundary ({final_state.security_boundary_reason})")
+                else:
+                    err_hint = final_state.errors[-1] if final_state.errors else "Halted safely according to validation criteria."
+                    status_box.warning(f"⚠️ Application Workflow Paused Safely: {err_hint}")
+            except Exception as ex:
+                status_box.error(f"Execution Error: {str(ex)}")
+            finally:
+                try:
+                    pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
+                    for t in pending:
+                        t.cancel()
+                    if pending:
+                        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                except Exception:
+                    pass
+                loop.close()
 
     # Display results if last_state exists
     state: OrchestrationState = st.session_state.get("last_state")
@@ -487,11 +506,22 @@ with tab_audit:
                 mime="application/json"
             )
         with col_tamper:
-            if st.button("🧪 Simulate Tampering Attack", help="Mutates a block to demonstrate real-time cryptographic tamper detection."):
-                if len(ledger.chain) > 2:
-                    ledger.chain[1].action_record.execution_result = "INJECTED_FORGED_PAYLOAD"
-                    t_valid, t_msg, t_idx = ledger.verify_chain_integrity()
-                    st.error(f"🚨 TAMPER DETECTION DEMO: Chain broken! {t_msg}")
+            if "tamper_mode" not in st.session_state:
+                st.session_state["tamper_mode"] = False
+
+            if not st.session_state["tamper_mode"]:
+                if st.button("🧪 Simulate Tampering Attack", help="Mutates a historical block payload to demonstrate real-time cryptographic tamper detection."):
+                    if len(ledger.chain) > 2:
+                        st.session_state["tamper_original_val"] = ledger.chain[1].action_record.execution_result
+                        ledger.chain[1].action_record.execution_result = "INJECTED_FORGED_PAYLOAD"
+                        st.session_state["tamper_mode"] = True
+                        st.rerun()
+            else:
+                if st.button("🔄 Restore Ledger Integrity", type="primary", help="Restores the original verified payload to re-establish chain integrity."):
+                    if len(ledger.chain) > 2 and "tamper_original_val" in st.session_state:
+                        ledger.chain[1].action_record.execution_result = st.session_state["tamper_original_val"]
+                    st.session_state["tamper_mode"] = False
+                    st.rerun()
 
         st.markdown("##### ⛓️ Block Chain Explorer")
         for blk in reversed(ledger.chain):

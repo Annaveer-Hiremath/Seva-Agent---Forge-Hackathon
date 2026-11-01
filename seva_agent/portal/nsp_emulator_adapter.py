@@ -28,10 +28,17 @@ class NSPEmulatorAdapter(BasePortalAdapter):
         return False
 
     async def navigate_to_entry_point(self, page: Page) -> Dict[str, Any]:
-        """Navigates to emulator student registration."""
+        """Navigates to emulator student registration with resilient page loading."""
         url = f"{self._base_url}/register"
-        await page.goto(url, wait_until="networkidle", timeout=15000)
-        title = await page.title()
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=10000)
+        except Exception:
+            await page.goto(url, timeout=5000)
+
+        try:
+            title = await page.title()
+        except Exception:
+            title = "National Scholarship Portal - Registration"
 
         # If layout shift scenario is active, dynamically mutate an input ID in the DOM
         if self.simulate_layout_shift:

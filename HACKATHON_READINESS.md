@@ -56,11 +56,18 @@ India's Direct Benefit Transfer (DBT) scholarship schemes disburse over ₹20,00
 
 ---
 
-## Pillar 4: Live Demonstration & Robustness (Score Target: 29–30/30)
+## Pillar 4: Live Demonstration & Robustness (Score Target: 28–29 / 30)
 
-### 1. Truth in Demonstration
-- **Mode A (Simulated NSP 2.0 Mirror)**: Full end-to-end execution through all 8 stages, layout-shift adaptive recovery, visual CAPTCHA, mobile OTP, and official ID generation.
-- **Mode B (Live Official Government Portal)**: Navigates `https://scholarships.gov.in` and `https://scholarships.gov.in/otrapplication/#/`, inspects live DOM, handles advisory popups, and halts cleanly at the live government e-KYC boundary without generating fraudulent submissions.
+### 1. Truth in Demonstration & Sub-Criteria Compliance
+- **End-to-End Execution**: Full autonomous 8-stage execution during evaluation without crashing or hanging. Clean separation between Mode A (high-fidelity local mirror) and Mode B (live portal e-KYC navigation).
+- **Edge Case Resilience**:
+  1. *Missing / Corrupted Documents*: Handled safely in `DocumentIntelligenceAgent.process_document()` with `0.0` confidence and descriptive diagnostic notes instead of throwing `FileNotFoundError`.
+  2. *Empty / Malformed Profile Data*: Pre-flight identity gating halts execution cleanly with human-readable error messages before any browser automation is launched.
+  3. *Unpredictable Government Portal States*: `NSPLiveAdapter` uses `domcontentloaded` with automated retry, preventing 30s network idle timeouts from slow external tracking scripts.
+  4. *Native JavaScript Alert Popups*: Browser agent registers an asynchronous dialog handler to automatically accept alerts/prompts, preventing automation freezes.
+  5. *Human-in-the-Loop Safe Timeout*: Bounded with a 45-second countdown and auto-recovery fallback to ensure that unhandled human pauses never lock the application or Streamlit UI.
+  6. *Submit Button Interception*: Eliminates double-clicks with resilient scroll-into-view and force-click fallbacks.
+  7. *Streamlit UI Resilience*: Async tasks are cleanly cancelled before event loop closure, pre-flight warnings prevent launch with blank inputs, and cryptographic tamper simulation includes an instant "Restore Ledger Integrity" mechanism.
 
 ---
 

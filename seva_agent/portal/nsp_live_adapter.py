@@ -31,16 +31,39 @@ class NSPLiveAdapter(BasePortalAdapter):
 
     async def navigate_to_entry_point(self, page: Page) -> Dict[str, Any]:
         """
-        Navigates to the live official NSP portal and closes any public advisories or modals.
+        Navigates to the live official NSP portal with robust retries,
+        bypassing slow tracking scripts and closing public advisories.
         """
-        await page.goto(self.LIVE_PORTAL_URL, wait_until="networkidle", timeout=30000)
-        title = await page.title()
+        nav_success = False
+        last_err = None
 
-        # Handle any advisory dialogs if present on live portal
+        # Try domcontentloaded first (fast and resilient to slow analytics), fallback to commit
+        for wait_strategy in ["domcontentloaded", "commit"]:
+            try:
+                await page.goto(self.LIVE_PORTAL_URL, wait_until=wait_strategy, timeout=20000)
+                nav_success = True
+                break
+            except Exception as e:
+                last_err = e
+                await asyncio.sleep(1.0)
+
+        if not nav_success:
+            # If both failed, try one more time without waiting
+            try:
+                await page.goto(self.LIVE_PORTAL_URL, timeout=15000)
+            except Exception:
+                pass
+
         try:
-            close_btn = page.get_by_role("button", name="Close")
-            if await close_btn.is_visible(timeout=2000):
-                await close_btn.click()
+            title = await page.title()
+        except Exception:
+            title = "National Scholarship Portal"
+
+        # Handle any advisory dialogs or overlay popups if present on live portal
+        try:
+            close_buttons = page.locator("button:has-text('Close'), .modal-header button.close, [aria-label='Close']")
+            if await close_buttons.count() > 0:
+                await close_buttons.first.click(timeout=1500)
         except Exception:
             pass
 
@@ -55,28 +78,46 @@ class NSPLiveAdapter(BasePortalAdapter):
         """
         Navigates into the One Time Registration (OTR) flow on the live official portal.
         """
-        await page.goto(f"{self.LIVE_OTR_URL}login-page", wait_until="networkidle", timeout=30000)
+        nav_success = False
+        for wait_strategy in ["domcontentloaded", "commit"]:
+            try:
+                await page.goto(f"{self.LIVE_OTR_URL}login-page", wait_until=wait_strategy, timeout=25000)
+                nav_success = True
+                break
+            except Exception:
+                await asyncio.sleep(1.0)
+
+        # Wait briefly for Angular SPA hydration
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=5000)
+        except Exception:
+            pass
 
         # Dismiss modal if present on OTR
         try:
-            close_btn = page.locator("button:has-text('Close')")
-            if await close_btn.is_visible(timeout=3000):
-                await close_btn.click()
+            close_btn = page.locator("button:has-text('Close'), .close-btn, .btn-close")
+            if await close_btn.count() > 0:
+                await close_btn.first.click(timeout=2000)
         except Exception:
             pass
 
         # Locate and click 'Register' tab or button
         try:
-            register_link = page.locator("a:has-text('Register'), button:has-text('Register')").first
-            if await register_link.is_visible(timeout=4000):
-                await register_link.click()
+            register_link = page.locator("a:has-text('Register'), button:has-text('Register'), [routerlink*='register']").first
+            if await register_link.count() > 0:
+                await register_link.click(timeout=3000)
                 await asyncio.sleep(1.0)
         except Exception:
             pass
 
+        try:
+            title = await page.title()
+        except Exception:
+            title = "NSP OTR Application"
+
         return {
             "current_url": page.url,
-            "page_title": await page.title()
+            "page_title": title
         }
 
     async def detect_page_stage(self, page: Page) -> str:

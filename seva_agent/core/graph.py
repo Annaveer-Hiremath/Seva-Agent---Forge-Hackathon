@@ -135,6 +135,23 @@ class SevaAgentGraph:
             for err in val_errors:
                 state.log("ValidatorAgent", f"Pre-validation alert: {err}")
 
+        # Check for missing critical identity fields to prevent browser crashes on empty profiles
+        missing_identity = []
+        if not (profile.full_name or "").strip():
+            missing_identity.append("Full Name")
+        if not (profile.aadhaar_number or "").strip():
+            missing_identity.append("Aadhaar Number")
+        if not (profile.mobile_number or "").strip():
+            missing_identity.append("Mobile Number")
+
+        if missing_identity:
+            state.current_workflow_state = WorkflowState.FAILED
+            err_msg = f"Cannot proceed to portal: Mandatory profile fields missing: {', '.join(missing_identity)}"
+            state.errors.append(err_msg)
+            state.log("ValidatorAgent", f"🚨 Pre-flight Halt: {err_msg}")
+            state.submission_status_summary = "HALTED_MISSING_PROFILE_DATA"
+            return state
+
         # ------------------- STATES 5-11: BROWSER AGENTIC LOOP -------------------
         state.current_workflow_state = WorkflowState.PORTAL_NAVIGATION
         state.current_agent = "BrowserAutomationAgent"
