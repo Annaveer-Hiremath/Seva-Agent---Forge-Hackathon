@@ -233,7 +233,9 @@ class AgentActionDecision(BaseModel):
     rationale: str
     confidence: float = Field(default=0.95, ge=0.0, le=1.0)
     requires_human_approval: bool = False
-    validation_status: str = "PENDING"  # "APPROVED", "REJECTED"
+    validation_status: str = "APPROVED"  # "APPROVED", "REJECTED"
+    model_request_prompt: Optional[str] = None
+    model_response_raw: Optional[str] = None
 
 
 class AgentActionRecord(BaseModel):

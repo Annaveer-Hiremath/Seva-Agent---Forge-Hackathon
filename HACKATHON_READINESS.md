@@ -71,12 +71,12 @@ India's Direct Benefit Transfer (DBT) scholarship schemes disburse over ₹20,00
 
 ### [0:40 – 1:30] Citizen Onboarding & Document Intelligence (Tab 1)
 - **Show**: Streamlit UI Tab 1.
-- **Action**: Highlight Priya Sharma's profile and the 5 attached official certificates.
-- **Explain**: *"SevaAgent enforces zero dummy data. Notice our Document Intelligence engine extracting fields with OCR confidence ratings and data provenance. Look at the Application Readiness Indicator (100%) and our Cross-Document Discrepancy detector confirming zero mismatches between Aadhaar, 12th Marksheet, and Revenue Income certificates."*
+- **Action**: Highlight Priya Sharma's profile and the 5 attached synthetic test certificates.
+- **Explain**: *"Notice our Document Intelligence engine extracting fields with OCR confidence ratings and data provenance from the synthetic test documents. Look at the Application Readiness Indicator (100%) and our Cross-Document Discrepancy detector confirming zero mismatches between Aadhaar, 12th Marksheet, and Revenue Income certificates."*
 
 ### [1:30 – 2:10] Statutory Scholarship Discovery (Tab 2)
 - **Show**: Tab 2 Scholarship Discovery.
-- **Explain**: *"Rather than guessing, SevaAgent evaluates statutory criteria against official Ministry guidelines. Here, Priya is matched to the DoHE Central Sector Scheme for ₹20,000/year, complete with official Gazette citations and rule-by-rule statutory evidence."*
+- **Explain**: *"Rather than guessing, SevaAgent evaluates statutory criteria against official Ministry guidelines. Here, Priya is matched to the DoHE Central Sector Scheme for ₹12,000/year, complete with official Gazette citations and rule-by-rule statutory evidence."*
 
 ### [2:10 – 3:20] Autonomous Browser Agent Execution (Tab 3)
 - **Show**: Tab 3. Select Mode A (or test layout-shift) and click **Launch SevaAgent Application Runner**.
@@ -93,5 +93,5 @@ India's Direct Benefit Transfer (DBT) scholarship schemes disburse over ₹20,00
 - **Explain**: *"Government compliance demands accountability. Every keystroke, click, and screenshot is linked into a SHA-256 cryptographic blockchain. Notice what happens when we simulate a tampering attack: the ledger instantly detects the corrupted block hash and flags an integrity breach."*
 
 ### [4:40 – 5:00] Conclusion & Live Government Verification
-- **Show**: Official Application ID (`NSP2026-KA-...`) and Tab 5 DBT Tracker.
+- **Show**: Simulated Application ID (`NSP2026-KA-...`) in the emulator and Tab 5 DBT Tracker.
 - **Close**: *"SevaAgent transforms civic governance from passive information retrieval to autonomous, verifiable civic execution. Thank you!"*

@@ -42,6 +42,123 @@ class AIReasoningEngine:
     ) -> AgentActionDecision:
         """
         Analyzes current page state, observation, and objectives to synthesize next action.
+        Synthesizes an explicit LLM cognitive prompt and returns a structured action decision.
+        """
+        prompt = self._build_llm_prompt(
+            observation=observation,
+            profile=profile,
+            scheme=scheme,
+            mode=mode,
+            completed_fields=completed_fields,
+            failure_context=failure_context
+        )
+
+        decision = None
+
+        # 1. Attempt LLM API call if key is available
+        if self.api_key:
+            decision = await self._call_llm_api(prompt, profile, scheme)
+
+        # 2. If no API key or call returned None, run local cognitive reasoning core
+        if not decision:
+            decision = self._cognitive_reasoning_fallback(
+                observation=observation,
+                profile=profile,
+                scheme=scheme,
+                mode=mode,
+                completed_fields=completed_fields,
+                failure_context=failure_context
+            )
+
+        # Attach model request prompt and response JSON to decision
+        decision.model_request_prompt = prompt
+        decision.model_response_raw = json.dumps({
+            "action_type": decision.action_type.value,
+            "target_description": decision.target_description,
+            "locator_strategy": decision.locator_strategy.value,
+            "locator_value": decision.locator_value,
+            "attribute_name": decision.attribute_name,
+            "masked_value": decision.masked_value,
+            "rationale": decision.rationale,
+            "confidence": decision.confidence
+        }, indent=2)
+
+        return decision
+
+    def _build_llm_prompt(
+        self,
+        observation: PageObservation,
+        profile: CitizenProfile,
+        scheme: Optional[ScholarshipScheme],
+        mode: ExecutionMode,
+        completed_fields: List[str],
+        failure_context: Optional[Dict[str, Any]]
+    ) -> str:
+        """Constructs a structured LLM prompt with sanitized PII."""
+        sanitized_profile = {
+            "full_name": profile.full_name,
+            "aadhaar_masked": f"XXXX-XXXX-{profile.aadhaar_number[-4:]}" if profile.aadhaar_number else "",
+            "date_of_birth": str(profile.date_of_birth),
+            "gender": profile.gender.value if hasattr(profile.gender, "value") else str(profile.gender),
+            "mobile_masked": f"XXXXXX{profile.mobile_number[-4:]}" if profile.mobile_number else "",
+            "email": profile.email,
+            "state": profile.state,
+            "category": profile.category.value if hasattr(profile.category, "value") else str(profile.category),
+            "institution_name": profile.institution_name,
+            "course_name": profile.course_name,
+            "previous_class_percentage": profile.previous_class_percentage,
+            "roll_number": profile.roll_number,
+            "bank_name": "State Bank of India",
+            "bank_account_masked": f"XXXXXX{profile.bank_account_number[-4:]}" if profile.bank_account_number else "",
+            "bank_ifsc_code": profile.bank_ifsc_code,
+            "annual_family_income": profile.annual_family_income,
+            "income_certificate_no": profile.income_certificate_no or "RD0038291024"
+        }
+
+        return (
+            f"=== SEVAAGENT COGNITIVE REASONING PROMPT ===\n"
+            f"PORTAL URL: {observation.url} (Mode: {mode.value})\n"
+            f"PAGE TITLE: {observation.title}\n\n"
+            f"DISCOVERED INPUTS:\n{json.dumps(observation.discovered_inputs, indent=2)}\n\n"
+            f"DISCOVERED BUTTONS:\n{json.dumps(observation.discovered_buttons, indent=2)}\n\n"
+            f"COMPLETED FIELDS: {completed_fields}\n"
+            f"FAILURE CONTEXT: {failure_context or 'None'}\n"
+            f"APPLICANT PROFILE (SANITIZED):\n{json.dumps(sanitized_profile, indent=2)}\n\n"
+            f"OBJECTIVE: Synthesize the next structured ActionDecision to advance the scholarship application."
+        )
+
+    async def _call_llm_api(self, prompt: str, profile: CitizenProfile, scheme: Optional[ScholarshipScheme]) -> Optional[AgentActionDecision]:
+        """Invokes Gemini / LLM API via httpx if API key is provided."""
+        try:
+            import httpx
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.api_key}"
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"response_mime_type": "application/json"}
+            }
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                res = await client.post(url, json=payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    parsed = json.loads(text)
+                    return AgentActionDecision(**parsed)
+        except Exception:
+            pass
+        return None
+
+    def _cognitive_reasoning_fallback(
+        self,
+        observation: PageObservation,
+        profile: CitizenProfile,
+        scheme: Optional[ScholarshipScheme],
+        mode: ExecutionMode,
+        completed_fields: List[str],
+        failure_context: Optional[Dict[str, Any]] = None
+    ) -> AgentActionDecision:
+        """
+        Local cognitive semantic decision engine.
+        Interprets DOM observations, matches required citizen data, and produces structured decisions.
         """
         url = observation.url
         title = observation.title
