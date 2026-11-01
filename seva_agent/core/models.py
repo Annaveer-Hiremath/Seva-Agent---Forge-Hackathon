@@ -106,51 +106,51 @@ class CitizenProfile(BaseModel):
     provenance: Dict[str, FieldProvenance] = Field(default_factory=dict)
 
     # Personal Identification
-    full_name: str
-    date_of_birth: str  # YYYY-MM-DD
-    gender: Gender
-    aadhaar_number: str  # 12-digit Aadhaar
-    mobile_number: str
-    email: str
-    father_name: str
-    mother_name: str
-    category: Category
+    full_name: str = ""
+    date_of_birth: str = ""  # YYYY-MM-DD
+    gender: Gender = Gender.FEMALE
+    aadhaar_number: str = ""  # 12-digit Aadhaar
+    mobile_number: str = ""
+    email: str = ""
+    father_name: str = ""
+    mother_name: str = ""
+    category: Category = Category.GENERAL
     religion: str = "Hindu"
     marital_status: str = "Unmarried"
     is_disabled: bool = False
     disability_percentage: float = 0.0
 
     # Domicile & Location
-    state: str  # e.g., "Karnataka"
-    district: str
-    address_line: str
-    pincode: str
+    state: str = "Karnataka"  # e.g., "Karnataka"
+    district: str = "Bengaluru"
+    address_line: str = ""
+    pincode: str = "560001"
 
     # Academic Profile
-    course_level: CourseLevel
-    course_name: str
-    institution_name: str
+    course_level: CourseLevel = CourseLevel.UNDERGRADUATE
+    course_name: str = ""
+    institution_name: str = ""
     institution_code: str = "INST-KA-0941"
     aishe_code: str = "C-12345"
-    university_or_board: str
+    university_or_board: str = ""
     current_year_of_study: int = 1
-    previous_class_percentage: float
+    previous_class_percentage: float = 0.0
     previous_passing_year: int = 2025
-    roll_number: str
+    roll_number: str = ""
 
     # Financial & Social Profile
-    annual_family_income: float
+    annual_family_income: float = 0.0
     income_certificate_no: Optional[str] = None
     caste_certificate_no: Optional[str] = None
     ration_card_no: Optional[str] = None
     is_bpl: bool = True
 
     # Bank Account for DBT
-    bank_account_number: str
-    bank_ifsc_code: str
-    bank_name: str
-    bank_branch: str
-    account_holder_name: str
+    bank_account_number: str = ""
+    bank_ifsc_code: str = ""
+    bank_name: str = ""
+    bank_branch: str = ""
+    account_holder_name: str = ""
 
     # Attached documents (path -> ExtractedDocumentData)
     documents: Dict[str, ExtractedDocumentData] = Field(default_factory=dict)

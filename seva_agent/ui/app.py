@@ -148,6 +148,8 @@ if "profile" not in st.session_state:
         bank_account_number="",
         bank_ifsc_code="",
         bank_name="",
+        bank_branch="",
+        account_holder_name="",
         documents={}
     )
 if "last_state" not in st.session_state:
@@ -235,7 +237,7 @@ with st.sidebar:
                 course_level=CourseLevel.UNDERGRADUATE, course_name="", institution_name="",
                 university_or_board="", previous_class_percentage=0.0, roll_number="",
                 annual_family_income=0.0, bank_account_number="", bank_ifsc_code="", bank_name="",
-                documents={}
+                bank_branch="", account_holder_name="", documents={}
             )
             st.session_state["last_state"] = None
             st.rerun()
@@ -339,6 +341,8 @@ with tab_intake:
         prof.bank_account_number = st.text_input("Bank Account Number (DBT)", value=prof.bank_account_number, placeholder="Bank Account Number")
         prof.bank_ifsc_code = st.text_input("Bank IFSC Code", value=prof.bank_ifsc_code, placeholder="e.g. SBIN0040123")
         prof.bank_name = st.text_input("Bank Name", value=prof.bank_name, placeholder="e.g. State Bank of India")
+        prof.bank_branch = st.text_input("Bank Branch", value=prof.bank_branch, placeholder="e.g. Bangalore Main")
+        prof.account_holder_name = st.text_input("Account Holder Name", value=prof.account_holder_name, placeholder="e.g. Priya Sharma")
 
     st.markdown("---")
     st.subheader("📄 Attached Supporting Documents")
