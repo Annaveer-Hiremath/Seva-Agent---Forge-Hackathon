@@ -17,6 +17,8 @@ venv/
 # Playwright & Browser artifacts
 test_output.pdf
 *.pdf
+*.pptx
+generate_deck.py
 
 # Emulator dynamic runtime data
 seva_agent/portal/emulator/data/captchas/*
