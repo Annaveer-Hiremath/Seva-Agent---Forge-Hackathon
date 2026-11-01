@@ -23,8 +23,16 @@ EMULATOR_DATA_DIR = Path(__file__).resolve().parent / "data"
 CAPTCHA_DIR = EMULATOR_DATA_DIR / "captchas"
 UPLOAD_DIR = EMULATOR_DATA_DIR / "uploads"
 
-CAPTCHA_DIR.mkdir(parents=True, exist_ok=True)
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    CAPTCHA_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+except (OSError, PermissionError):
+    import tempfile
+    EMULATOR_DATA_DIR = Path(tempfile.gettempdir()) / "seva_emulator"
+    CAPTCHA_DIR = EMULATOR_DATA_DIR / "captchas"
+    UPLOAD_DIR = EMULATOR_DATA_DIR / "uploads"
+    CAPTCHA_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # In-memory session store for emulator
 PORTAL_SESSIONS: Dict[str, Dict[str, Any]] = {}

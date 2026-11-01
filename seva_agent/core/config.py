@@ -15,9 +15,20 @@ AUDIT_LOG_DIR = BASE_DIR / "storage" / "audit_logs"
 DB_PATH = BASE_DIR / "storage" / "seva_agent.db"
 
 # Create directories if they do not exist
-SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
-AUDIT_LOG_DIR.mkdir(parents=True, exist_ok=True)
-DOCS_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+    AUDIT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    DOCS_DIR.mkdir(parents=True, exist_ok=True)
+except (OSError, PermissionError):
+    import tempfile
+    TMP_DIR = Path(tempfile.gettempdir()) / "seva_agent"
+    SCREENSHOTS_DIR = TMP_DIR / "screenshots"
+    AUDIT_LOG_DIR = TMP_DIR / "audit_logs"
+    DOCS_DIR = TMP_DIR / "documents"
+    DB_PATH = TMP_DIR / "seva_agent.db"
+    SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+    AUDIT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Portal & Automation Configuration
 EMULATOR_HOST = "127.0.0.1"

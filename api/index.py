@@ -23,6 +23,19 @@ app = FastAPI(
     version="2.0.0"
 )
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    import traceback
+    return JSONResponse(
+        status_code=500,
+        content={
+            "status": "ERROR",
+            "error_type": type(exc).__name__,
+            "message": str(exc),
+            "traceback": traceback.format_exc()
+        }
+    )
+
 discovery_agent = ScholarshipDiscoveryAgent()
 
 
@@ -174,7 +187,7 @@ def list_schemes():
             "citation": s.official_guideline_citation,
             "deadline": s.application_deadline
         }
-        for s in discovery_agent.schemes_catalog
+        for s in discovery_agent.scheme_catalog
     ]
     return {
         "total": len(schemes),
@@ -212,7 +225,7 @@ def assess_eligibility(req: QuickAssessmentRequest):
         course_level=cl
     )
 
-    assessments = discovery_agent.discover_and_evaluate(temp_profile)
+    assessments = discovery_agent.evaluate_profile(temp_profile)
     return {
         "applicant_profile": {
             "state": req.state,
@@ -225,9 +238,13 @@ def assess_eligibility(req: QuickAssessmentRequest):
                 "scheme_id": a.scheme.scheme_id,
                 "scheme_name": a.scheme.scheme_name,
                 "is_eligible": a.is_eligible,
-                "confidence_score": a.confidence_score,
-                "reasons": a.reasons,
-                "disqualifications": a.disqualifications
+                "eligibility_score": a.eligibility_score,
+                "actionable_summary": a.actionable_summary,
+                "missing_documents": [d.value for d in a.missing_documents],
+                "rule_evaluations": [
+                    {"rule": r.rule_name, "passed": r.passed, "explanation": r.explanation, "citation": r.citation}
+                    for r in a.rule_evaluations
+                ]
             }
             for a in assessments
         ]
