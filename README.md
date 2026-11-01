@@ -173,7 +173,24 @@ Open **`http://localhost:8501`** in your browser to interact with:
 2. **🎯 Statutory Scheme Discovery**: Inspect statutory eligibility against Central and State schemes with official Ministry citations.
 3. **🚀 Autonomous Execution Runner**: Switch between **Mode A (Mirror)** and **Mode B (Official Portal)**, toggle adaptive recovery, and observe live reasoning traces.
 4. **🛡️ Tamper-Evident Audit Ledger**: Walk the SHA-256 cryptographic chain and click **🧪 Simulate Tampering Attack** to watch the ledger detect forged data.
-5. **📋 Applications & DBT Tracker**: View permanent records in SQLite.
+5. **📋 Applications & DBT Tracker**: View permanent records in SQLite and inspect live DBT/PFMS disbursement status.
+
+---
+
+## 🌐 Cloud Deployment Options
+
+### Option A: Streamlit Community Cloud (Recommended for Full Interactive UI)
+Streamlit Cloud provides persistent WebSocket connections and background worker processes required for SevaAgent's real-time multi-agent UI and Playwright automation:
+1. Go to **[share.streamlit.io](https://share.streamlit.io)** and log in with GitHub.
+2. Click **New app** $\rightarrow$ Select repository `Annaveer-Hiremath/Seva-Agent---Forge-Hackathon`.
+3. Set **Main file path** to: `seva_agent/ui/app.py`.
+4. Click **Deploy!** — Your live interactive dashboard will be online in under a minute.
+
+### Option B: Vercel Serverless API Gateway
+The repository is pre-configured with `api/index.py`, `main.py`, and `vercel.json` for Vercel Serverless Python:
+1. Import repository on [Vercel](https://vercel.com).
+2. Framework Preset: **Other**.
+3. Deploy! Vercel will build the serverless FastAPI gateway with interactive Swagger documentation (`/docs`), health checks (`/api/health`), and scheme discovery (`/api/schemes`).
 
 ---
 
