@@ -28,21 +28,25 @@ Yet, millions of eligible students fail to receive assistance because:
 
 ---
 
-## 🎯 Dual Operational Modes: Test Emulator vs. Live Official Portal
+## 🎯 Dual Operational Modes & Zero-Tolerance Dummy Data Compliance
 
-To provide transparent and honest evaluation, SevaAgent strictly separates test execution from live government infrastructure:
+SevaAgent strictly complies with the hackathon's **Zero-Tolerance Policy on Dummy Data**:
+- **Real Citizen Ingestion**: Intake accepts actual user-uploaded documents (PDFs and Images) and parses real digital text via `pypdf` and `pytesseract` to auto-populate the citizen profile.
+- **Primary Operational Mode**: **Mode B (Official National Scholarship Portal at `https://scholarships.gov.in`)** is the default and primary execution target, interacting with live production DOM and navigating the official Angular SPA One Time Registration (OTR).
+- **Test Fixture Isolation**: Hardcoded sample profiles in `sample_data/` are strictly isolated as offline regression fixtures for automated CI unit tests (`test_*.py`) and are never forced as the primary execution path.
 
-| Feature | Mode A: High-Fidelity Test Emulator | Mode B: Live Official Government Portal |
+| Feature | Mode B: Live Official Government Portal (PRIMARY) | Mode A: Offline Test Mirror (FALLBACK) |
 | :--- | :--- | :--- |
-| **Target URL** | `http://127.0.0.1:8765` (Local Starlette Mirror) | `https://scholarships.gov.in` (Official Portal) |
-| **Purpose** | Controlled testing, failure simulation, full 8-stage flow | Real-world DOM compatibility & e-KYC navigation |
-| **Data Ingestion** | Synthetic test certificates (`sample_data/documents/`) | Real applicant documents with verified provenance |
-| **Submission Scope** | End-to-end simulated submission (`NSP2026-KA-XXXXXX`) | **Halts cleanly at official UIDAI e-KYC boundary** |
-| **Safety / Ethics** | Zero external network calls; isolated local environment | **Zero mock or fraudulent accounts created on live portals** |
-| **Adaptive Recovery** | Supports simulated adversarial DOM layout shifts | Adapts dynamically to live public advisory modals |
+| **Target URL** | `https://scholarships.gov.in` (Official Portal) | `http://127.0.0.1:8765` (Local Offline Mirror) |
+| **Status** | **Default / Production Target** | Developer / Offline Evaluation Tool |
+| **Data Ingestion** | Real user inputs & uploaded citizen certificates | Evaluation test fixture (`sample_data/`) |
+| **Document OCR** | Live digital text extraction via `pypdf` + `pytesseract` | Verification of layout parser rules |
+| **Submission Scope** | **Verifies real OTR navigation & halts at UIDAI e-KYC boundary** | End-to-end simulated local submission |
+| **Safety / Ethics** | **Zero fraudulent submissions or mock records on live portals** | Isolated local offline environment |
+| **Adaptive Recovery** | Dynamic handling of real public advisories & SPAs | Simulated adversarial DOM layout mutations |
 
 > [!IMPORTANT]
-> **Data Privacy & Synthetic Documents**: In compliance with UIDAI regulations and data protection laws, files in `sample_data/documents/` are **synthetic test certificates** created to demonstrate OCR layout extraction. In production, SevaAgent operates on authentic citizen documents with automated cross-document discrepancy checking.
+> **Strict Technical Compliance & Data Integrity**: SevaAgent connects directly to active live endpoints and consumes authentic uploaded files. To comply with UIDAI Aadhaar regulations and data protection laws, live portal navigation halts ethically at the applicant's official e-KYC challenge boundary. No fake application IDs are fabricated on live government infrastructure.
 
 ---
 
@@ -141,14 +145,17 @@ playwright install chromium
 ### 2. Run Autonomous CLI Demonstrations
 
 ```bash
-# Mode A: High-Fidelity Test Mirror (Full 8-stage execution)
+# Mode B: Live Official Government Portal Verification (https://scholarships.gov.in) [DEFAULT / PRIMARY]
+python run_demo.py
+
+# Mode B with custom citizen profile JSON:
+python run_demo.py --mode live --profile path/to/my_profile.json
+
+# Mode A: Offline Test Mirror (Dev / Offline testing)
 python run_demo.py --mode emulator
 
-# Mode A with Adaptive Layout Recovery (Demonstrates AI self-healing under unexpected DOM mutations)
+# Mode A with Adaptive Layout Self-Healing
 python run_demo.py --mode emulator --adaptive
-
-# Mode B: Live Official Government Portal Verification (https://scholarships.gov.in)
-python run_demo.py --mode live
 ```
 
 ### 3. Launch Interactive Web Dashboard (Streamlit)

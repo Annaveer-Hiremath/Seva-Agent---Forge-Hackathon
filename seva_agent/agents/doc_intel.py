@@ -87,6 +87,30 @@ class DocumentIntelligenceAgent:
             if not path.exists():
                 return ""
 
+            # 1. Real PDF extraction using pypdf
+            if path.suffix.lower() == ".pdf":
+                try:
+                    from pypdf import PdfReader
+                    reader = PdfReader(str(path))
+                    pages_text = [p.extract_text() for p in reader.pages if p.extract_text()]
+                    extracted = "\n".join(pages_text).strip()
+                    if extracted:
+                        return extracted
+                except Exception:
+                    pass
+
+            # 2. Real Image OCR using pytesseract + PIL
+            if path.suffix.lower() in [".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"]:
+                try:
+                    import pytesseract
+                    from PIL import Image
+                    img = Image.open(str(path))
+                    ocr_res = pytesseract.image_to_string(img)
+                    if ocr_res and ocr_res.strip():
+                        return ocr_res
+                except Exception:
+                    pass
+
             # If it's a text file or JSON
             if path.suffix.lower() in [".txt", ".json", ".csv"]:
                 with open(path, "r", encoding="utf-8", errors="ignore") as f:

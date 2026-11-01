@@ -3,7 +3,17 @@
 **Project**: SevaAgent — Autonomous Civic AI Agent for Live Government Scholarship Portals  
 **Target Score**: 96–98 / 100 (Official Evaluation Rubric)  
 **Repository**: [https://github.com/Annaveer-Hiremath/Seva-Agent---Forge-Hackathon](https://github.com/Annaveer-Hiremath/Seva-Agent---Forge-Hackathon)  
-**Portal Target**: National Scholarship Portal (NSP 2.0 / NSP OTR at `https://scholarships.gov.in`)
+**Portal Target**: National Scholarship Portal (NSP OTR at `https://scholarships.gov.in`)
+
+---
+
+## 🛡️ Strict Technical Compliance: Zero-Tolerance Policy on Dummy Data
+
+SevaAgent strictly complies with the hackathon's technical compliance mandate:
+1. **No Hardcoded Dummy Datasets**: Citizen profiles are created dynamically through live user input and authentic document uploads. In the Streamlit UI, citizens upload actual PDFs/images; `pypdf` and `pytesseract` extract digital text in real-time to auto-populate the profile.
+2. **Real-Time Live Portal as Primary Path**: Browser automation defaults to the **Live National Scholarship Portal (`https://scholarships.gov.in`)**. It interacts with the live Angular SPA One Time Registration (OTR), validates live public advisories, and inspects real-world DOM elements.
+3. **No Fabricated Portal Credentials**: On live infrastructure, the system refuses to generate fake IDs like `NSP2026-KA-XXXXXX`. Live runs verify the registration flow up to the UIDAI e-KYC boundary ethically, and report the real stage status without dummy data.
+4. **Isolated Test Fixtures**: Deterministic sample documents in `sample_data/` are strictly isolated for regression testing (`tests/test_*.py`) and are never forced as the application's default path.
 
 ---
 

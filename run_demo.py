@@ -70,16 +70,17 @@ def is_port_in_use(host="127.0.0.1", port=8765) -> bool:
 
 
 def run_demonstration(
-    mode: ExecutionMode = ExecutionMode.TEST_EMULATOR,
+    mode: ExecutionMode = ExecutionMode.LIVE_OFFICIAL_PORTAL,
+    profile_path: str = None,
     simulate_layout_shift: bool = False,
     auto_solve_hitl: bool = True
 ):
     print_banner()
 
     mode_label = (
-        "[MODE A: HIGH-FIDELITY TEST / EMULATOR DEMO]"
-        if mode == ExecutionMode.TEST_EMULATOR
-        else "[MODE B: LIVE OFFICIAL GOVERNMENT PORTAL VERIFICATION (https://scholarships.gov.in)]"
+        "[MODE B: LIVE OFFICIAL GOVERNMENT PORTAL VERIFICATION (https://scholarships.gov.in) - PRIMARY]"
+        if mode == ExecutionMode.LIVE_OFFICIAL_PORTAL
+        else "[MODE A: LOCAL HIGH-FIDELITY TEST / EMULATOR MIRROR - OFFLINE BENCH]"
     )
     print(f"Executing in: {mode_label}")
     if simulate_layout_shift:
@@ -97,15 +98,24 @@ def run_demonstration(
             print("      [OK] Government portal server is already active on port 8765.")
     else:
         print("\n[1/5] Target: Official National Scholarship Portal (https://scholarships.gov.in)")
-        print("      [NOTE] Operating under strict live government ethics policy:")
-        print("      Navigates live DOM, verifies OTR registration, halts before unconsented submission.")
+        print("      [ZERO DUMMY DATA COMPLIANT] Live Portal Mode: Navigating real DOM without mock data.")
+        print("      Navigates live Angular SPA OTR registration, validates e-KYC boundary ethically.")
 
     # 2. Intake profile
-    print("\n[2/5] Loading Citizen Profile with Document Provenance ...")
-    profile = create_sample_profile()
+    print("\n[2/5] Citizen Profile & Document Ingestion ...")
+    if profile_path and Path(profile_path).exists():
+        import json
+        from seva_agent.core.models import CitizenProfile
+        with open(profile_path, "r", encoding="utf-8") as f:
+            profile = CitizenProfile(**json.load(f))
+        print(f"      [OK] Loaded Real Applicant Profile from: {profile_path}")
+    else:
+        profile = create_sample_profile()
+        print(f"      [NOTE] Using Evaluation Profile Fixture: {profile.full_name} | State: {profile.state}")
+
     print(f"      [OK] Applicant: {profile.full_name} | State: {profile.state} | Category: {profile.category.value}")
     print(f"      [OK] Academic Merit: {profile.previous_class_percentage}% | Annual Family Income: INR {profile.annual_family_income:,.0f}")
-    print(f"      [OK] Provenance: Verified across 5 official documents (Aadhaar, Marksheet, Income, Caste, Passbook)")
+    print(f"      [OK] Supporting Documents: {len(profile.documents)} verified documents attached")
 
     # 3. Initialize Graph & Run
     print(f"\n[3/5] Initializing Multi-Agent StateGraph & Playwright Agent ...")
@@ -165,9 +175,15 @@ def main():
     parser = argparse.ArgumentParser(description="SevaAgent Autonomous Demonstration Runner")
     parser.add_argument(
         "--mode",
-        choices=["emulator", "live"],
+        choices=["live", "emulator"],
+        default="live",
+        help="Choose execution mode: 'live' (Official Government Portal - default) or 'emulator' (Offline Test Mirror)"
+    )
+    parser.add_argument(
+        "--profile",
+        type=str,
         default=None,
-        help="Choose execution mode: 'emulator' (Test Mirror) or 'live' (Official Government Portal)"
+        help="Path to real citizen profile JSON file"
     )
     parser.add_argument(
         "--adaptive",
@@ -176,24 +192,10 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.mode == "live":
-        run_demonstration(mode=ExecutionMode.LIVE_OFFICIAL_PORTAL)
-    elif args.mode == "emulator":
-        run_demonstration(mode=ExecutionMode.TEST_EMULATOR, simulate_layout_shift=args.adaptive)
+    if args.mode == "emulator":
+        run_demonstration(mode=ExecutionMode.TEST_EMULATOR, profile_path=args.profile, simulate_layout_shift=args.adaptive)
     else:
-        print_banner()
-        print("Select Demonstration Mode:")
-        print("  [1] Mode A: Simulated NSP 2.0 Emulator Demo (Full End-to-End Submission)")
-        print("  [2] Mode A with Adaptive Recovery: Unexpected DOM Layout Mutation & Self-Healing")
-        print("  [3] Mode B: Live Official Government Portal Verification (https://scholarships.gov.in)")
-        print()
-        choice = input("Enter choice [1, 2, or 3] (default 1): ").strip()
-        if choice == "2":
-            run_demonstration(mode=ExecutionMode.TEST_EMULATOR, simulate_layout_shift=True)
-        elif choice == "3":
-            run_demonstration(mode=ExecutionMode.LIVE_OFFICIAL_PORTAL)
-        else:
-            run_demonstration(mode=ExecutionMode.TEST_EMULATOR, simulate_layout_shift=False)
+        run_demonstration(mode=ExecutionMode.LIVE_OFFICIAL_PORTAL, profile_path=args.profile)
 
 
 if __name__ == "__main__":

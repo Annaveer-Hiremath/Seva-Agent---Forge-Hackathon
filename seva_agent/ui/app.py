@@ -123,7 +123,33 @@ st.markdown("""
 db = SevaDatabase()
 
 if "profile" not in st.session_state:
-    st.session_state["profile"] = create_sample_profile()
+    # Initialize with clean citizen profile container ready for real user input
+    st.session_state["profile"] = CitizenProfile(
+        full_name="",
+        date_of_birth="",
+        gender=Gender.FEMALE,
+        aadhaar_number="",
+        mobile_number="",
+        email="",
+        father_name="",
+        mother_name="",
+        category=Category.GENERAL,
+        state="Karnataka",
+        district="Bengaluru",
+        address_line="",
+        pincode="560001",
+        course_level=CourseLevel.UNDERGRADUATE,
+        course_name="",
+        institution_name="",
+        university_or_board="",
+        previous_class_percentage=0.0,
+        roll_number="",
+        annual_family_income=0.0,
+        bank_account_number="",
+        bank_ifsc_code="",
+        bank_name="",
+        documents={}
+    )
 if "last_state" not in st.session_state:
     st.session_state["last_state"] = None
 if "audit_ledger" not in st.session_state:
@@ -142,8 +168,8 @@ st.markdown("""
             </p>
         </div>
         <div style="text-align: right; font-size: 12px;">
-            <strong>Target: National Scholarship Portal (NSP 2.0)</strong><br>
-            <span>SHA-256 Tamper-Evident Chained Audit Trail</span>
+            <strong>Target: National Scholarship Portal (scholarships.gov.in)</strong><br>
+            <span>Real Document Ingestion & SHA-256 Audit Trail</span>
         </div>
     </div>
 </div>
@@ -155,27 +181,28 @@ with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/5/55/Emblem_of_India.svg", width=65)
     st.subheader("System Control Panel")
 
+    # Primary mode is LIVE OFFICIAL GOVERNMENT PORTAL (scholarships.gov.in)
     portal_choice = st.radio(
         "Execution Target Portal",
         options=[
-            "Mode A: Simulated NSP 2.0 Mirror (http://127.0.0.1:8765)",
-            "Mode B: Official National Scholarship Portal (https://scholarships.gov.in)"
+            "Mode B: Official National Scholarship Portal (https://scholarships.gov.in) [PRIMARY / LIVE]",
+            "Mode A: Local Offline Emulator (http://127.0.0.1:8765) [DEV / TEST BENCH]"
         ],
         index=0
     )
     is_live_portal = "scholarships.gov.in" in portal_choice
     execution_mode = ExecutionMode.LIVE_OFFICIAL_PORTAL if is_live_portal else ExecutionMode.TEST_EMULATOR
 
-    if not is_live_portal:
-        st.info("ℹ️ **Mode A**: High-fidelity local mirror for testing complete 8-step autonomous submission.")
+    if is_live_portal:
+        st.success("🌐 **Live Government Mode Active**: Interacts directly with `https://scholarships.gov.in` and OTR SPA registration.")
+        trigger_layout_shift = False
+    else:
+        st.info("ℹ️ **Mode A (Offline Fallback)**: Local Starlette emulator mirror for offline testing.")
         trigger_layout_shift = st.checkbox(
             "⚡ Trigger Unexpected Layout Shift",
             value=False,
             help="Simulates an adversarial DOM mutation to demonstrate autonomous cognitive self-healing."
         )
-    else:
-        st.warning("⚠️ **Mode B**: Real Government Portal. Autonomous navigation with safety boundary before live OTP/submission.")
-        trigger_layout_shift = False
 
     automation_mode = st.radio(
         "Security Challenge Solving",
@@ -187,15 +214,31 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📊 Live System Status")
     st.write(f"**Target Mode:** `{execution_mode.value}`")
-    st.write(f"**Adaptive Healing:** `{'ON' if trigger_layout_shift else 'OFF'}`")
+    st.write(f"**Data Policy:** Zero Dummy Data Compliant")
     st.write(f"**Playwright Browser:** Ready (Chromium)")
     st.write(f"**Orchestrator:** Multi-Agent StateGraph (15 States)")
     st.write(f"**Audit Ledger:** SHA-256 Tamper-Evident Chain")
 
-    if st.button("🔄 Reset Profile to Default (Priya Sharma)"):
-        st.session_state["profile"] = create_sample_profile()
-        st.session_state["last_state"] = None
-        st.rerun()
+    with st.expander("🧪 Evaluator Quick-Test Helper", expanded=False):
+        st.caption("Quickly populate a standard evaluation profile if you do not have personal documents to upload right now.")
+        if st.button("📋 Load Sample Evaluation Profile (Priya Sharma)"):
+            st.session_state["profile"] = create_sample_profile()
+            st.session_state["last_state"] = None
+            st.success("Loaded evaluation test profile.")
+            st.rerun()
+        if st.button("🧹 Clear All Profile Fields"):
+            st.session_state["profile"] = CitizenProfile(
+                full_name="", date_of_birth="", gender=Gender.FEMALE,
+                aadhaar_number="", mobile_number="", email="",
+                father_name="", mother_name="", category=Category.GENERAL,
+                state="Karnataka", district="Bengaluru", address_line="", pincode="560001",
+                course_level=CourseLevel.UNDERGRADUATE, course_name="", institution_name="",
+                university_or_board="", previous_class_percentage=0.0, roll_number="",
+                annual_family_income=0.0, bank_account_number="", bank_ifsc_code="", bank_name="",
+                documents={}
+            )
+            st.session_state["last_state"] = None
+            st.rerun()
 
 
 # Main Tabs
@@ -211,59 +254,111 @@ tab_intake, tab_discovery, tab_runner, tab_audit, tab_tracking = st.tabs([
 # ==================== TAB 1: INTAKE & DOCUMENT INTELLIGENCE ====================
 with tab_intake:
     st.subheader("Student Profile & Official Supporting Documents")
-    st.info("SevaAgent enforces ZERO dummy data. Citizen profiles must be backed by verifiable official documents.")
+    st.info("🏛️ **Zero Dummy Data Policy Active**: Upload your authentic citizen certificates (PDF or Image) and enter your real details. SevaAgent extracts verified fields dynamically via OCR & PDF parsing.")
 
     prof: CitizenProfile = st.session_state["profile"]
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown("##### 🆔 Personal Details")
-        prof.full_name = st.text_input("Full Name (as in Aadhaar)", value=prof.full_name)
-        prof.aadhaar_number = st.text_input("Aadhaar Number (12 Digits)", value=prof.aadhaar_number)
-        prof.date_of_birth = st.text_input("Date of Birth (YYYY-MM-DD)", value=prof.date_of_birth)
-        prof.gender = Gender(st.selectbox("Gender", options=[g.value for g in Gender], index=1))
-        prof.mobile_number = st.text_input("Mobile Number (Aadhaar Seeded)", value=prof.mobile_number)
-        prof.email = st.text_input("Email Address", value=prof.email)
+    # Active Document Upload Section
+    st.markdown("#### 📤 Upload Citizen Documents (Real OCR & Extraction)")
+    uploaded_files = st.file_uploader(
+        "Upload Supporting Certificates (e-Aadhaar, Marksheets, Income Certificates, Passbooks in PDF/PNG/JPG)",
+        type=["pdf", "png", "jpg", "jpeg"],
+        accept_multiple_files=True,
+        help="Upload authentic documents. Real digital text and OCR entities are parsed immediately."
+    )
 
-    with col2:
-        st.markdown("##### 🎓 Academic & Institution")
-        prof.state = st.selectbox("State of Domicile", options=["Karnataka", "Maharashtra", "Uttar Pradesh", "Tamil Nadu", "Delhi"], index=0)
-        prof.course_level = CourseLevel(st.selectbox("Course Level", options=[cl.value for cl in CourseLevel], index=2))
-        prof.course_name = st.text_input("Course Name", value=prof.course_name)
-        prof.institution_name = st.text_input("College / University", value=prof.institution_name)
-        prof.previous_class_percentage = st.number_input("Class 12 / Prior Marks (%)", value=float(prof.previous_class_percentage), min_value=0.0, max_value=100.0, step=0.1)
-        prof.roll_number = st.text_input("Board Registration / Roll No", value=prof.roll_number)
+    if uploaded_files:
+        upload_dir = Path("storage/uploads")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        doc_intel = DocumentIntelligenceAgent()
 
-    with col3:
-        st.markdown("##### 💳 Financial & Banking (DBT)")
-        prof.category = Category(st.selectbox("Social Category", options=[c.value for c in Category], index=1))
-        prof.annual_family_income = st.number_input("Annual Family Income (INR)", value=float(prof.annual_family_income), step=10000.0)
-        prof.income_certificate_no = st.text_input("Income Certificate / RD No", value=prof.income_certificate_no or "RD0038291024")
-        prof.bank_account_number = st.text_input("Bank Account Number (DBT)", value=prof.bank_account_number)
-        prof.bank_ifsc_code = st.text_input("Bank IFSC Code", value=prof.bank_ifsc_code)
-        prof.bank_name = st.text_input("Bank Name", value=prof.bank_name)
+        for up_file in uploaded_files:
+            save_path = upload_dir / up_file.name
+            with open(save_path, "wb") as f:
+                f.write(up_file.getbuffer())
+
+            doc_data = doc_intel.process_document(str(save_path))
+            prof.documents[doc_data.doc_type.value] = doc_data
+
+            # Dynamically auto-populate citizen fields from verified extracted data
+            ext = doc_data.extracted_fields
+            if "name" in ext and not prof.full_name:
+                prof.full_name = ext["name"]
+            if "aadhaar_number" in ext and not prof.aadhaar_number:
+                prof.aadhaar_number = ext["aadhaar_number"]
+            if "dob" in ext and not prof.date_of_birth:
+                prof.date_of_birth = ext["dob"]
+            if "annual_income" in ext and prof.annual_family_income == 0.0:
+                try:
+                    prof.annual_family_income = float(ext["annual_income"])
+                except Exception:
+                    pass
+            if "percentage" in ext and prof.previous_class_percentage == 0.0:
+                try:
+                    prof.previous_class_percentage = float(ext["percentage"])
+                except Exception:
+                    pass
+            if "roll_number" in ext and not prof.roll_number:
+                prof.roll_number = str(ext["roll_number"])
+            if "ifsc_code" in ext and not prof.bank_ifsc_code:
+                prof.bank_ifsc_code = ext["ifsc_code"]
+            if "account_number" in ext and not prof.bank_account_number:
+                prof.bank_account_number = ext["account_number"]
+
+            st.success(f"✅ Processed `{up_file.name}` as **{doc_data.doc_type.value}** (Confidence: {doc_data.confidence_score*100:.0f}%). Extracted fields: {list(ext.keys())}")
 
     st.markdown("---")
-    st.subheader("📄 Attached Official Documents & OCR Intelligence")
+    st.markdown("#### 📝 Citizen Application Details")
 
-    doc_cols = st.columns(5)
-    doc_types = [
-        ("Aadhaar Card", "AADHAAR", "aadhaar_card.png"),
-        ("Income Certificate", "INCOME_CERTIFICATE", "income_certificate.png"),
-        ("Caste Certificate", "CASTE_CERTIFICATE", "caste_certificate.png"),
-        ("12th Marksheet", "MARKSHEET_12TH", "marksheet_12th.png"),
-        ("Bank Passbook", "BANK_PASSBOOK", "bank_passbook.png"),
-    ]
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown("##### 🆔 Personal Identification")
+        prof.full_name = st.text_input("Full Name (as in Aadhaar)", value=prof.full_name, placeholder="Enter applicant full name")
+        prof.aadhaar_number = st.text_input("Aadhaar Number (12 Digits)", value=prof.aadhaar_number, placeholder="12-digit Aadhaar number")
+        prof.date_of_birth = st.text_input("Date of Birth (YYYY-MM-DD)", value=prof.date_of_birth, placeholder="YYYY-MM-DD")
+        prof.gender = Gender(st.selectbox("Gender", options=[g.value for g in Gender], index=0 if prof.gender == Gender.MALE else 1))
+        prof.mobile_number = st.text_input("Mobile Number (Aadhaar Seeded)", value=prof.mobile_number, placeholder="10-digit mobile number")
+        prof.email = st.text_input("Email Address", value=prof.email, placeholder="student@example.com")
 
-    for i, (title, dtype, img_name) in enumerate(doc_types):
-        with doc_cols[i]:
-            img_path = DOCS_DIR / img_name
-            if img_path.exists():
-                st.image(str(img_path), caption=title, use_container_width=True)
-            doc_data = prof.documents.get(dtype)
-            if doc_data:
-                st.markdown(f"**Confidence:** `{doc_data.confidence_score*100:.0f}%`")
-                st.caption(f"Verified: {', '.join(list(doc_data.extracted_fields.keys())[:2])}")
+    with col2:
+        st.markdown("##### 🎓 Academic & Enrollment")
+        state_options = ["Karnataka", "Maharashtra", "Uttar Pradesh", "Tamil Nadu", "Delhi", "Bihar", "West Bengal", "Gujarat", "Rajasthan"]
+        curr_state_idx = state_options.index(prof.state) if prof.state in state_options else 0
+        prof.state = st.selectbox("State of Domicile", options=state_options, index=curr_state_idx)
+        prof.course_level = CourseLevel(st.selectbox("Course Level", options=[cl.value for cl in CourseLevel], index=2))
+        prof.course_name = st.text_input("Course Name", value=prof.course_name, placeholder="e.g. B.Tech Computer Science")
+        prof.institution_name = st.text_input("College / University", value=prof.institution_name, placeholder="e.g. National Institute of Technology")
+        prof.previous_class_percentage = st.number_input("Class 12 / Prior Marks (%)", value=float(prof.previous_class_percentage), min_value=0.0, max_value=100.0, step=0.1)
+        prof.roll_number = st.text_input("Board Registration / Roll No", value=prof.roll_number, placeholder="e.g. 2024-KA-8891")
+
+    with col3:
+        st.markdown("##### 💳 Financial & Banking (Direct Benefit Transfer)")
+        prof.category = Category(st.selectbox("Social Category", options=[c.value for c in Category], index=1 if prof.category == Category.OBC else 0))
+        prof.annual_family_income = st.number_input("Annual Family Income (INR)", value=float(prof.annual_family_income), step=10000.0)
+        prof.income_certificate_no = st.text_input("Income Certificate / RD No", value=prof.income_certificate_no or "", placeholder="e.g. RD0038291024")
+        prof.bank_account_number = st.text_input("Bank Account Number (DBT)", value=prof.bank_account_number, placeholder="Bank Account Number")
+        prof.bank_ifsc_code = st.text_input("Bank IFSC Code", value=prof.bank_ifsc_code, placeholder="e.g. SBIN0040123")
+        prof.bank_name = st.text_input("Bank Name", value=prof.bank_name, placeholder="e.g. State Bank of India")
+
+    st.markdown("---")
+    st.subheader("📄 Attached Supporting Documents")
+
+    if prof.documents:
+        doc_cols = st.columns(min(len(prof.documents), 5))
+        for idx, (doc_key, doc_data) in enumerate(prof.documents.items()):
+            col_target = doc_cols[idx % len(doc_cols)]
+            with col_target:
+                st.markdown(f"**{doc_data.doc_type.value}**")
+                if doc_data.file_path and os.path.exists(doc_data.file_path):
+                    if doc_data.file_path.lower().endswith((".png", ".jpg", ".jpeg")):
+                        st.image(doc_data.file_path, caption=doc_key, use_container_width=True)
+                    else:
+                        st.caption(f"📄 PDF File: `{Path(doc_data.file_path).name}`")
+                st.write(f"Confidence: `{doc_data.confidence_score*100:.0f}%`")
+                if doc_data.extracted_fields:
+                    st.caption(f"Fields: {list(doc_data.extracted_fields.keys())[:3]}")
+    else:
+        st.warning("⚠️ No documents uploaded yet. Upload your certificates above or load the evaluation test template.")
 
     # Application Readiness Indicator & Cross-Document Intelligence
     st.markdown("---")

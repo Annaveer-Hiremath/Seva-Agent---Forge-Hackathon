@@ -397,17 +397,32 @@ class BrowserAutomationAgent:
 
             # 4. Upload File
             elif decision.action_type == ActionType.UPLOAD_FILE:
-                file_mapping = {
-                    "marksheet": str(DOCS_DIR / "marksheet_12th.png"),
-                    "income": str(DOCS_DIR / "income_certificate.png"),
-                    "caste": str(DOCS_DIR / "caste_certificate.png"),
-                    "passbook": str(DOCS_DIR / "bank_passbook.png"),
-                }
                 chosen_path = None
-                for k, p in file_mapping.items():
-                    if k in decision.target_description.lower():
-                        chosen_path = p
-                        break
+                # Prioritize real user-uploaded documents from current session state
+                if self.current_state and self.current_state.citizen_profile and self.current_state.citizen_profile.documents:
+                    for d_key, d_obj in self.current_state.citizen_profile.documents.items():
+                        dk = d_key.lower()
+                        desc = decision.target_description.lower()
+                        if (("marksheet" in desc and "marksheet" in dk) or
+                            ("income" in desc and "income" in dk) or
+                            ("caste" in desc and "caste" in dk) or
+                            (any(b in desc for b in ["passbook", "bank", "cheque"]) and any(b in dk for b in ["passbook", "bank"]))):
+                            if d_obj.file_path and os.path.exists(d_obj.file_path):
+                                chosen_path = d_obj.file_path
+                                break
+
+                if not chosen_path:
+                    file_mapping = {
+                        "marksheet": str(DOCS_DIR / "marksheet_12th.png"),
+                        "income": str(DOCS_DIR / "income_certificate.png"),
+                        "caste": str(DOCS_DIR / "caste_certificate.png"),
+                        "passbook": str(DOCS_DIR / "bank_passbook.png"),
+                    }
+                    for k, p in file_mapping.items():
+                        if k in decision.target_description.lower() and os.path.exists(p):
+                            chosen_path = p
+                            break
+
                 if not chosen_path or not os.path.exists(chosen_path):
                     from seva_agent.agents.doc_intel import DocumentIntelligenceAgent
                     DocumentIntelligenceAgent.generate_synthetic_documents(DOCS_DIR)
@@ -444,7 +459,7 @@ class BrowserAutomationAgent:
                     import re
                     content = await self.page.content()
                     m = re.search(r"\b(NSP202[5-7]-[A-Z]{2}-\d+)\b", content)
-                    app_id = m.group(1) if m else "NSP2026-KA-VERIFIED"
+                    app_id = m.group(1) if m else (f"LOCAL_EMULATOR_REF_{int(time.time()*1000)%1000000}" if self.adapter and not self.adapter.is_live_production else None)
                 
                 if self.current_state:
                     self.current_state.application_id = app_id
