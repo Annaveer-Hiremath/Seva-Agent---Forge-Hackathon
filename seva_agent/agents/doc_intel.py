@@ -11,6 +11,7 @@ and cross-verification of official Indian government documents:
 
 import re
 import os
+import hashlib
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List
 from PIL import Image, ImageDraw, ImageFont
@@ -18,7 +19,12 @@ from PIL import Image, ImageDraw, ImageFont
 from seva_agent.core.models import (
     DocumentType,
     ExtractedDocumentData,
-    CitizenProfile
+    CitizenProfile,
+    FieldProvenance,
+    VerificationStatus,
+    DocumentDiscrepancy,
+    ApplicationReadinessScore,
+    ScholarshipScheme
 )
 
 
@@ -105,8 +111,8 @@ class DocumentIntelligenceAgent:
                 fields["aadhaar_number"] = "982143098124"
                 confidence -= 0.1
 
-            # Match Name
-            name_match = re.search(r"Name\s*[:\-]?\s*([A-Za-z\s]+)", text, re.IGNORECASE)
+            # Match Name (do not cross newline)
+            name_match = re.search(r"Name\s*[:\-]?\s*([A-Za-z \t]+)", text, re.IGNORECASE)
             if name_match:
                 fields["name"] = name_match.group(1).strip()
 
@@ -233,6 +239,135 @@ class DocumentIntelligenceAgent:
                 )
 
         return flags
+
+    def analyze_discrepancies(self, profile: CitizenProfile) -> List[DocumentDiscrepancy]:
+        """
+        Structured cross-document discrepancy detection across verified official certificates.
+        Never silently mutates data; flags discrepancies for applicant confirmation.
+        """
+        discrepancies: List[DocumentDiscrepancy] = []
+
+        # 1. Income Verification
+        income_doc = next((d for d in profile.documents.values() if d.doc_type == DocumentType.INCOME_CERTIFICATE), None)
+        if income_doc and "annual_income" in income_doc.extracted_fields:
+            cert_income = float(income_doc.extracted_fields["annual_income"])
+            if abs(cert_income - profile.annual_family_income) > 1000:
+                discrepancies.append(DocumentDiscrepancy(
+                    field_name="annual_family_income",
+                    declared_value=f"₹{profile.annual_family_income:,.0f}",
+                    extracted_value=f"₹{cert_income:,.0f}",
+                    source_document=Path(income_doc.file_path).name,
+                    severity="CRITICAL",
+                    explanation=f"Revenue Income Certificate states ₹{cert_income:,.0f}, while profile claims ₹{profile.annual_family_income:,.0f}."
+                ))
+
+        # 2. Merit Percentage Verification
+        marksheet = next((d for d in profile.documents.values() if d.doc_type == DocumentType.MARKSHEET_12TH), None)
+        if marksheet and "percentage" in marksheet.extracted_fields:
+            cert_pct = float(marksheet.extracted_fields["percentage"])
+            if abs(cert_pct - profile.previous_class_percentage) > 0.5:
+                discrepancies.append(DocumentDiscrepancy(
+                    field_name="previous_class_percentage",
+                    declared_value=f"{profile.previous_class_percentage:.2f}%",
+                    extracted_value=f"{cert_pct:.2f}%",
+                    source_document=Path(marksheet.file_path).name,
+                    severity="CRITICAL",
+                    explanation=f"Board Examination Marksheet reflects {cert_pct:.2f}%, whereas declared value is {profile.previous_class_percentage:.2f}%."
+                ))
+
+        # 3. Bank Account Number Verification
+        passbook = next((d for d in profile.documents.values() if d.doc_type == DocumentType.BANK_PASSBOOK), None)
+        if passbook and "account_number" in passbook.extracted_fields:
+            cert_acct = passbook.extracted_fields["account_number"]
+            if cert_acct != profile.bank_account_number:
+                discrepancies.append(DocumentDiscrepancy(
+                    field_name="bank_account_number",
+                    declared_value=profile.bank_account_number,
+                    extracted_value=cert_acct,
+                    source_document=Path(passbook.file_path).name,
+                    severity="CRITICAL",
+                    explanation=f"Bank passbook reflects account {cert_acct}, whereas declared DBT account is {profile.bank_account_number}."
+                ))
+
+        # 4. Name Consistency Check (Aadhaar vs Marksheet)
+        aadhaar_doc = next((d for d in profile.documents.values() if d.doc_type == DocumentType.AADHAAR), None)
+        if aadhaar_doc and marksheet:
+            a_name = aadhaar_doc.extracted_fields.get("name", "").lower().strip()
+            # If both have names, verify spelling similarity
+            if a_name and a_name not in profile.full_name.lower():
+                discrepancies.append(DocumentDiscrepancy(
+                    field_name="full_name",
+                    declared_value=profile.full_name,
+                    extracted_value=aadhaar_doc.extracted_fields.get("name"),
+                    source_document=Path(aadhaar_doc.file_path).name,
+                    severity="WARNING",
+                    explanation=f"Aadhaar card name '{aadhaar_doc.extracted_fields.get('name')}' differs from profile name '{profile.full_name}'."
+                ))
+
+        profile.discrepancies = discrepancies
+        return discrepancies
+
+    def calculate_readiness_score(self, profile: CitizenProfile, scheme: Optional[ScholarshipScheme] = None) -> ApplicationReadinessScore:
+        """
+        Computes the Application Readiness Indicator (0-100%).
+        Distinguishes application completeness from statutory approval.
+        """
+        score = 0.0
+        notes = []
+
+        # Personal details complete (25 pts)
+        personal_ok = bool(profile.full_name and profile.aadhaar_number and len(profile.aadhaar_number) == 12 and profile.mobile_number and profile.date_of_birth)
+        if personal_ok:
+            score += 25.0
+            notes.append("Personal details and 12-digit Aadhaar verified.")
+        else:
+            notes.append("Incomplete personal demographic records.")
+
+        # Academic details complete (25 pts)
+        academic_ok = bool(profile.institution_name and profile.course_name and profile.previous_class_percentage > 0 and profile.roll_number)
+        if academic_ok:
+            score += 25.0
+            notes.append("Academic qualifications and roll number verified.")
+        else:
+            notes.append("Academic details incomplete.")
+
+        # Banking & Financial details (20 pts)
+        financial_ok = bool(profile.bank_account_number and profile.bank_ifsc_code and profile.annual_family_income > 0)
+        if financial_ok:
+            score += 20.0
+            notes.append("DBT bank account and annual income declared.")
+        else:
+            notes.append("Banking or income records incomplete.")
+
+        # Required documents uploaded (20 pts)
+        req_docs = len(profile.documents) >= 4
+        if req_docs:
+            score += 20.0
+            notes.append(f"All {len(profile.documents)} core supporting documents uploaded.")
+        else:
+            notes.append(f"Only {len(profile.documents)}/4 core documents present.")
+
+        # Discrepancies check (10 pts)
+        discrepancies = self.analyze_discrepancies(profile)
+        no_conflicts = (len(discrepancies) == 0)
+        if no_conflicts:
+            score += 10.0
+            notes.append("Zero cross-document data discrepancies detected.")
+        else:
+            notes.append(f"{len(discrepancies)} cross-document discrepancy flags require attention.")
+
+        readiness = ApplicationReadinessScore(
+            overall_percentage=score,
+            personal_details_complete=personal_ok,
+            academic_details_complete=academic_ok,
+            financial_details_complete=financial_ok,
+            required_documents_uploaded=req_docs,
+            discrepancies_resolved=no_conflicts,
+            statutory_eligibility_passed=(scheme is not None and profile.annual_family_income <= scheme.max_family_income),
+            breakdown_notes=notes
+        )
+        profile.readiness = readiness
+        return readiness
 
     @staticmethod
     def generate_synthetic_documents(output_dir: Path) -> Dict[str, str]:

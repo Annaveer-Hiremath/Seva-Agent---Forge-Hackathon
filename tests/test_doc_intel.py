@@ -36,6 +36,26 @@ class TestDocIntel(unittest.TestCase):
         self.assertTrue(len(flags) > 0)
         self.assertIn("Income Discrepancy", flags[0])
 
+    def test_analyze_discrepancies(self):
+        # Clean profile should have zero discrepancies
+        discrepancies = self.doc_intel.analyze_discrepancies(self.profile)
+        self.assertEqual(len(discrepancies), 0)
+
+        # Alter profile name to test discrepancy
+        mismatch_profile = self.profile.model_copy()
+        mismatch_profile.full_name = "Priya R Sharma"  # aadhaar says Priya Ramesh Sharma
+        discrepancies_found = self.doc_intel.analyze_discrepancies(mismatch_profile)
+        self.assertTrue(len(discrepancies_found) > 0)
+        self.assertTrue(any(d.field_name == "full_name" for d in discrepancies_found))
+
+    def test_readiness_score_calculation(self):
+        from seva_agent.agents.discovery import ScholarshipDiscoveryAgent
+        scheme = ScholarshipDiscoveryAgent().scheme_catalog[0]
+        readiness = self.doc_intel.calculate_readiness_score(self.profile, scheme)
+        self.assertGreaterEqual(readiness.overall_percentage, 85.0)
+        self.assertTrue(readiness.is_ready_to_apply)
+        self.assertEqual(len(readiness.missing_critical_documents), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

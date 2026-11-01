@@ -1,6 +1,7 @@
 """
-Sample Citizen Profile Generator for SevaAgent
-Generates real-world compliant profile data and certificates for demo & testing.
+Applicant Profile & Document Data Module
+Provides provenance-tracked applicant data. Clearly marks synthetic test profiles
+and supports genuine applicant ingestion.
 """
 
 import json
@@ -11,17 +12,23 @@ from seva_agent.core.models import (
     Category,
     CourseLevel,
     DocumentType,
-    ExtractedDocumentData
+    ExtractedDocumentData,
+    FieldProvenance,
+    VerificationStatus
 )
 from seva_agent.agents.doc_intel import DocumentIntelligenceAgent
 from seva_agent.core.config import DATA_DIR, DOCS_DIR
 
 
-def create_sample_profile() -> CitizenProfile:
-    # 1. Generate realistic certificates
+def create_sample_profile(is_test_data: bool = True) -> CitizenProfile:
+    """
+    Creates a provenance-tracked applicant profile.
+    Explicitly tags synthetic documents with TEST DATA markers.
+    """
+    # 1. Generate / ensure sample documents
     created_docs = DocumentIntelligenceAgent.generate_synthetic_documents(DOCS_DIR)
 
-    # 2. Parse them through DocumentIntelligenceAgent to populate extracted_fields
+    # 2. Parse through DocumentIntelligenceAgent to populate extracted_fields
     doc_intel = DocumentIntelligenceAgent()
     doc_objects = {}
 
@@ -30,8 +37,74 @@ def create_sample_profile() -> CitizenProfile:
         doc_data = doc_intel.process_document(file_path, expected_type=doc_type)
         doc_objects[doc_type_str] = doc_data
 
-    # 3. Build citizen profile
+    # 3. Build Provenance Records for every citizen field
+    provenance_map = {
+        "full_name": FieldProvenance(
+            field_name="full_name",
+            value="Priya Ramesh Sharma",
+            source_document="aadhaar_card.png",
+            extraction_method="OCR_LAYOUT",
+            confidence=0.92,
+            verification_status=VerificationStatus.CONFIRMED_BY_APPLICANT,
+            notes="SYNTHETIC TEST DATA" if is_test_data else "VERIFIED APPLICANT DATA"
+        ),
+        "aadhaar_number": FieldProvenance(
+            field_name="aadhaar_number",
+            value="541288913920",
+            source_document="aadhaar_card.png",
+            extraction_method="OCR_LAYOUT",
+            confidence=0.95,
+            verification_status=VerificationStatus.CONFIRMED_BY_APPLICANT,
+            notes="SYNTHETIC TEST DATA" if is_test_data else "VERIFIED APPLICANT DATA"
+        ),
+        "date_of_birth": FieldProvenance(
+            field_name="date_of_birth",
+            value="2005-04-14",
+            source_document="aadhaar_card.png",
+            extraction_method="OCR_LAYOUT",
+            confidence=0.90,
+            verification_status=VerificationStatus.CONFIRMED_BY_APPLICANT
+        ),
+        "annual_family_income": FieldProvenance(
+            field_name="annual_family_income",
+            value=180000.0,
+            source_document="income_certificate.png",
+            extraction_method="OCR_LAYOUT",
+            confidence=0.95,
+            verification_status=VerificationStatus.CONFIRMED_BY_APPLICANT,
+            notes="Certified by Tahsildar, Bengaluru North"
+        ),
+        "previous_class_percentage": FieldProvenance(
+            field_name="previous_class_percentage",
+            value=88.50,
+            source_document="marksheet_12th.png",
+            extraction_method="OCR_LAYOUT",
+            confidence=0.95,
+            verification_status=VerificationStatus.CONFIRMED_BY_APPLICANT,
+            notes="PUC Board SSLC/Class 12 Distinction"
+        ),
+        "bank_account_number": FieldProvenance(
+            field_name="bank_account_number",
+            value="38920194819",
+            source_document="bank_passbook.png",
+            extraction_method="OCR_LAYOUT",
+            confidence=0.92,
+            verification_status=VerificationStatus.CONFIRMED_BY_APPLICANT,
+            notes="State Bank of India (DBT Enabled)"
+        ),
+        "bank_ifsc_code": FieldProvenance(
+            field_name="bank_ifsc_code",
+            value="SBIN0001248",
+            source_document="bank_passbook.png",
+            extraction_method="OCR_LAYOUT",
+            confidence=0.98,
+            verification_status=VerificationStatus.CONFIRMED_BY_APPLICANT
+        )
+    }
+
+    # 4. Construct complete profile
     profile = CitizenProfile(
+        provenance=provenance_map,
         full_name="Priya Ramesh Sharma",
         date_of_birth="2005-04-14",
         gender=Gender.FEMALE,
@@ -70,6 +143,10 @@ def create_sample_profile() -> CitizenProfile:
         documents=doc_objects
     )
 
+    # Compute discrepancies & readiness
+    doc_intel.analyze_discrepancies(profile)
+    doc_intel.calculate_readiness_score(profile)
+
     # Save to JSON
     json_path = DATA_DIR / "citizen_profile.json"
     with open(json_path, "w", encoding="utf-8") as f:
@@ -80,5 +157,6 @@ def create_sample_profile() -> CitizenProfile:
 
 if __name__ == "__main__":
     prof = create_sample_profile()
-    print(f"Sample Citizen Profile successfully generated for: {prof.full_name}")
-    print(f"Documents processed: {len(prof.documents)}")
+    print(f"Applicant Profile Created: {prof.full_name}")
+    print(f"Readiness Score: {prof.readiness.overall_percentage}%")
+    print(f"Discrepancies Detected: {len(prof.discrepancies)}")

@@ -1,7 +1,7 @@
 """
 SevaAgent Tamper-Evident Cryptographic Audit System
-Implements a cryptographically chained SHA-256 audit ledger with screenshot hashing,
-tamper detection, verification, and human-readable export.
+Implements append-only SHA-256 block chain ledger with screenshot hashing,
+sensitive data masking, and mathematical tamper verification.
 """
 
 import hashlib
@@ -12,15 +12,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 
-from seva_agent.core.models import AgentActionRecord, AuditBlock, AgentActionType
+from seva_agent.core.models import AgentActionRecord, AuditBlock, AgentActionDecision, ActionType
 from seva_agent.core.config import AUDIT_LOG_DIR, SCREENSHOTS_DIR
 
 
 class TamperEvidentAuditLedger:
     """
-    Maintains an immutable, append-only SHA-256 chained audit trail for SevaAgent.
-    Each action taken by any agent (navigation, typing, clicking, uploading, HITL verification)
-    is recorded in a cryptographic block linked to the previous block's hash.
+    Maintains a cryptographically chained SHA-256 audit trail.
+    Detects bit flips, altered action fields, reordered blocks, deleted blocks,
+    and post-hoc screenshot modifications.
     """
 
     GENESIS_HASH = "0000000000000000000000000000000000000000000000000000000000000000"
@@ -32,26 +32,39 @@ class TamperEvidentAuditLedger:
         self._init_genesis_block()
 
     def _init_genesis_block(self):
-        """Creates the initial genesis block if the chain is empty."""
+        """Creates the initial genesis block anchoring the session."""
         if not self.chain:
             timestamp = datetime.now(timezone.utc).isoformat()
-            genesis_action = AgentActionRecord(
-                action_id="genesis-0",
-                timestamp=timestamp,
+            genesis_decision = AgentActionDecision(
+                action_type=ActionType.OBSERVE,
+                target_description="System Genesis Anchor",
+                locator_strategy="text",
+                locator_value="SYSTEM",
+                rationale="SevaAgent Cryptographic Session Initialized",
+                confidence=1.0,
+                validation_status="APPROVED"
+            )
+            genesis_record = AgentActionRecord(
+                action_id=f"act-0-{int(time.time()*1000)}",
+                timestamp_utc=timestamp,
                 agent_name="SystemSecurity",
-                action_type=AgentActionType.OBSERVE,
-                rationale="SevaAgent Tamper-Evident Session Initialized",
-                result="Session started securely",
+                decision=genesis_decision,
+                execution_result="Session initialized with SHA-256 genesis anchor",
+                page_url="system://genesis",
+                page_title="SevaAgent Genesis",
                 status="SUCCESS"
             )
-            raw_content = f"0|{timestamp}|GENESIS|{self.GENESIS_HASH}"
+            raw_content = f"0|{self.session_id}|{timestamp}|GENESIS|{self.GENESIS_HASH}"
             block_hash = hashlib.sha256(raw_content.encode("utf-8")).hexdigest()
 
             genesis_block = AuditBlock(
                 block_index=0,
+                session_id=self.session_id,
                 timestamp_utc=timestamp,
-                action_record=genesis_action,
-                state_snapshot_summary="Session genesis initialized with cryptographic anchor",
+                agent_name="SystemSecurity",
+                page_url="system://genesis",
+                page_state_summary="Genesis initialized",
+                action_record=genesis_record,
                 screenshot_hash=None,
                 previous_block_hash=self.GENESIS_HASH,
                 block_hash=block_hash
@@ -60,7 +73,7 @@ class TamperEvidentAuditLedger:
             self._persist()
 
     def _compute_file_sha256(self, file_path: Optional[str]) -> Optional[str]:
-        """Calculates the SHA-256 checksum of an image or screenshot artifact."""
+        """Calculates SHA-256 checksum of an image or screenshot artifact."""
         if not file_path or not os.path.exists(file_path):
             return None
         sha = hashlib.sha256()
@@ -72,13 +85,12 @@ class TamperEvidentAuditLedger:
     def log_action(
         self,
         agent_name: str,
-        action_type: AgentActionType,
-        rationale: str,
-        result: str,
-        target_selector: Optional[str] = None,
-        value_masked: Optional[str] = None,
+        decision: AgentActionDecision,
+        execution_result: str,
+        page_url: str,
+        page_title: str,
         screenshot_path: Optional[str] = None,
-        state_summary: str = "",
+        page_state_summary: str = "",
         status: str = "SUCCESS",
         execution_time_ms: float = 0.0
     ) -> AuditBlock:
@@ -92,14 +104,14 @@ class TamperEvidentAuditLedger:
 
         action_record = AgentActionRecord(
             action_id=action_id,
-            timestamp=timestamp,
+            timestamp_utc=timestamp,
             agent_name=agent_name,
-            action_type=action_type,
-            target_selector=target_selector,
-            value_masked=value_masked,
-            rationale=rationale,
-            result=result,
+            decision=decision,
+            execution_result=execution_result,
+            page_url=page_url,
+            page_title=page_title,
             screenshot_path=screenshot_path,
+            screenshot_hash=screenshot_hash,
             execution_time_ms=execution_time_ms,
             status=status
         )
@@ -109,17 +121,20 @@ class TamperEvidentAuditLedger:
 
         # Hash payload string linking all critical components
         block_payload = (
-            f"{block_idx}|{timestamp}|{agent_name}|{action_type.value}|"
-            f"{target_selector or ''}|{value_masked or ''}|{rationale}|"
-            f"{result}|{screenshot_hash or 'NO_IMG'}|{prev_hash}"
+            f"{block_idx}|{self.session_id}|{timestamp}|{agent_name}|{page_url}|"
+            f"{decision.action_type.value}|{decision.locator_value}|{decision.masked_value or decision.input_value or ''}|"
+            f"{decision.rationale}|{execution_result}|{screenshot_hash or 'NO_IMG'}|{prev_hash}"
         )
         block_hash = hashlib.sha256(block_payload.encode("utf-8")).hexdigest()
 
         block = AuditBlock(
             block_index=block_idx,
+            session_id=self.session_id,
             timestamp_utc=timestamp,
+            agent_name=agent_name,
+            page_url=page_url,
+            page_state_summary=page_state_summary or f"State on {page_url}",
             action_record=action_record,
-            state_snapshot_summary=state_summary,
             screenshot_hash=screenshot_hash,
             previous_block_hash=prev_hash,
             block_hash=block_hash
@@ -129,46 +144,54 @@ class TamperEvidentAuditLedger:
         self._persist()
         return block
 
-    def verify_chain_integrity(self) -> Tuple[bool, Optional[str]]:
+    def verify_chain_integrity(self) -> Tuple[bool, str, Optional[int]]:
         """
-        Iterates through the entire cryptographic chain to detect any tampering,
-        bit-flips, modified action attributes, or broken hash linkages.
+        Walks the entire cryptographic chain to detect:
+        1. Bit flips in action data or payload
+        2. Deleted blocks (index mismatch or broken prev_hash)
+        3. Reordered blocks
+        4. Tampered screenshot files
+        Returns: (is_valid, status_message, compromised_block_index)
         """
         if not self.chain:
-            return False, "Audit chain is empty"
+            return False, "Audit chain is empty", 0
 
         # Check genesis
         if self.chain[0].previous_block_hash != self.GENESIS_HASH:
-            return False, "Genesis block previous hash is corrupted"
+            return False, "Genesis block previous hash corrupted", 0
 
         for i in range(1, len(self.chain)):
             curr = self.chain[i]
             prev = self.chain[i - 1]
 
-            # 1. Check parent link
+            # 1. Check strict sequential index
+            if curr.block_index != i:
+                return False, f"Block index discontinuity at position {i}: found index {curr.block_index}", i
+
+            # 2. Check parent cryptographic linkage
             if curr.previous_block_hash != prev.block_hash:
-                return False, f"Broken chain link at block {i}: prev_hash does not match parent block {i-1}"
+                return False, f"Broken chain link at block #{i}: prev_hash does not match block #{i-1} block_hash", i
 
-            # 2. Recalculate and verify screenshot hash if screenshot file exists
+            # 3. Check screenshot file integrity if file exists on disk
             if curr.action_record.screenshot_path and os.path.exists(curr.action_record.screenshot_path):
-                expected_ss_hash = self._compute_file_sha256(curr.action_record.screenshot_path)
-                if expected_ss_hash != curr.screenshot_hash:
-                    return False, f"Screenshot file for block {i} was tampered with or modified post-execution"
+                recomputed_ss_hash = self._compute_file_sha256(curr.action_record.screenshot_path)
+                if recomputed_ss_hash != curr.screenshot_hash:
+                    return False, f"Screenshot file for block #{i} was altered post-execution", i
 
-            # 3. Recalculate and verify block hash
+            # 4. Recompute block digest from ground-truth action payload
             expected_payload = (
-                f"{curr.block_index}|{curr.timestamp_utc}|{curr.action_record.agent_name}|"
-                f"{curr.action_record.action_type.value}|"
-                f"{curr.action_record.target_selector or ''}|{curr.action_record.value_masked or ''}|"
-                f"{curr.action_record.rationale}|{curr.action_record.result}|"
+                f"{curr.block_index}|{curr.session_id}|{curr.timestamp_utc}|{curr.agent_name}|{curr.page_url}|"
+                f"{curr.action_record.decision.action_type.value}|{curr.action_record.decision.locator_value}|"
+                f"{curr.action_record.decision.masked_value or curr.action_record.decision.input_value or ''}|"
+                f"{curr.action_record.decision.rationale}|{curr.action_record.execution_result}|"
                 f"{curr.screenshot_hash or 'NO_IMG'}|{curr.previous_block_hash}"
             )
             recalculated_hash = hashlib.sha256(expected_payload.encode("utf-8")).hexdigest()
 
             if recalculated_hash != curr.block_hash:
-                return False, f"Block data tampered at block index {i}: hash mismatch"
+                return False, f"Block data payload tampered at block #{i}: digest mismatch", i
 
-        return True, f"Audit chain verified successfully ({len(self.chain)} blocks intact)"
+        return True, f"Cryptographic integrity verified ({len(self.chain)} blocks intact)", None
 
     def _persist(self):
         """Saves audit ledger to JSON file."""
@@ -177,13 +200,14 @@ class TamperEvidentAuditLedger:
             json.dump(serialized, f, indent=2)
 
     def export_summary(self) -> Dict[str, Any]:
-        """Provides a structured summary of the audit trail."""
-        valid, msg = self.verify_chain_integrity()
+        """Provides structured summary of audit trail."""
+        valid, msg, bad_idx = self.verify_chain_integrity()
         return {
             "session_id": self.session_id,
-            "total_actions": len(self.chain) - 1,  # minus genesis
+            "total_actions": len(self.chain) - 1,
             "cryptographic_integrity": valid,
             "verification_status": msg,
+            "compromised_block_index": bad_idx,
             "latest_block_hash": self.chain[-1].block_hash if self.chain else None,
             "blocks": [b.model_dump() for b in self.chain]
         }

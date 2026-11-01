@@ -29,9 +29,11 @@ from seva_agent.core.models import (
     CourseLevel,
     DocumentType,
     ExtractedDocumentData,
-    AuditBlock
+    AuditBlock,
+    ApplicationReadinessScore,
+    DocumentDiscrepancy
 )
-from seva_agent.core.state import OrchestrationState
+from seva_agent.core.state import OrchestrationState, WorkflowState, ExecutionMode
 from seva_agent.core.audit import TamperEvidentAuditLedger
 from seva_agent.core.config import DOCS_DIR, SCREENSHOTS_DIR, AUDIT_LOG_DIR, EMULATOR_BASE_URL, LIVE_PORTALS
 from seva_agent.core.graph import SevaAgentGraph
@@ -153,24 +155,42 @@ with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/5/55/Emblem_of_India.svg", width=65)
     st.subheader("System Control Panel")
 
-    selected_portal = st.selectbox(
-        "Target Government Portal",
-        options=["NSP 2.0 (High-Fidelity Official Mirror)", "National Scholarship Portal (scholarships.gov.in)", "Karnataka SSP (ssp.karnataka.gov.in)"],
+    portal_choice = st.radio(
+        "Execution Target Portal",
+        options=[
+            "Mode A: Simulated NSP 2.0 Mirror (http://127.0.0.1:8765)",
+            "Mode B: Official National Scholarship Portal (https://scholarships.gov.in)"
+        ],
         index=0
     )
+    is_live_portal = "scholarships.gov.in" in portal_choice
+    execution_mode = ExecutionMode.LIVE_OFFICIAL_PORTAL if is_live_portal else ExecutionMode.TEST_EMULATOR
+
+    if not is_live_portal:
+        st.info("ℹ️ **Mode A**: High-fidelity local mirror for testing complete 8-step autonomous submission.")
+        trigger_layout_shift = st.checkbox(
+            "⚡ Trigger Unexpected Layout Shift",
+            value=False,
+            help="Simulates an adversarial DOM mutation to demonstrate autonomous cognitive self-healing."
+        )
+    else:
+        st.warning("⚠️ **Mode B**: Real Government Portal. Autonomous navigation with safety boundary before live OTP/submission.")
+        trigger_layout_shift = False
 
     automation_mode = st.radio(
-        "Browser Execution Mode",
-        options=["Autonomous + Auto-HITL (Demo Mode)", "Autonomous + Interactive HITL (Human Enters CAPTCHA/OTP)"],
+        "Security Challenge Solving",
+        options=["Autonomous + Auto-HITL (Non-blocking Demo)", "Autonomous + Interactive HITL (Human Enters CAPTCHA/OTP)"],
         index=0
     )
+    auto_solve_hitl = ("Auto-HITL" in automation_mode)
 
     st.markdown("---")
     st.markdown("### 📊 Live System Status")
+    st.write(f"**Target Mode:** `{execution_mode.value}`")
+    st.write(f"**Adaptive Healing:** `{'ON' if trigger_layout_shift else 'OFF'}`")
     st.write(f"**Playwright Browser:** Ready (Chromium)")
-    st.write(f"**Orchestrator:** Multi-Agent StateGraph")
-    st.write(f"**Audit Ledger:** SHA-256 Cryptographic Chain")
-    st.write(f"**Local Portal:** `http://127.0.0.1:8765`")
+    st.write(f"**Orchestrator:** Multi-Agent StateGraph (15 States)")
+    st.write(f"**Audit Ledger:** SHA-256 Tamper-Evident Chain")
 
     if st.button("🔄 Reset Profile to Default (Priya Sharma)"):
         st.session_state["profile"] = create_sample_profile()
@@ -245,14 +265,31 @@ with tab_intake:
                 st.markdown(f"**Confidence:** `{doc_data.confidence_score*100:.0f}%`")
                 st.caption(f"Verified: {', '.join(list(doc_data.extracted_fields.keys())[:2])}")
 
-    # Cross-validation warning check
+    # Application Readiness Indicator & Cross-Document Intelligence
+    st.markdown("---")
+    st.subheader("📊 Application Readiness Indicator & Cross-Document Verification")
     doc_intel = DocumentIntelligenceAgent()
-    cross_flags = doc_intel.cross_validate_profile(prof)
-    if cross_flags:
-        for f in cross_flags:
-            st.warning(f"⚠️ {f}")
+    discovery_agent = ScholarshipDiscoveryAgent()
+    top_scheme = discovery_agent.scheme_catalog[0]
+    readiness = doc_intel.calculate_readiness_score(prof, top_scheme)
+
+    r_col1, r_col2, r_col3, r_col4 = st.columns(4)
+    with r_col1:
+        st.metric("Readiness Indicator", f"{readiness.overall_percentage:.0f}%", delta="Ready to Apply" if readiness.is_ready_to_apply else "Needs Review")
+    with r_col2:
+        st.metric("Personal & Aadhaar", "Verified ✅" if readiness.personal_details_complete else "Incomplete ⚠️")
+    with r_col3:
+        st.metric("Academic Records", "Verified ✅" if readiness.academic_details_complete else "Incomplete ⚠️")
+    with r_col4:
+        st.metric("DBT Bank Account", "Verified ✅" if readiness.financial_details_complete else "Incomplete ⚠️")
+
+    # Cross-document Discrepancies
+    discrepancies = doc_intel.analyze_discrepancies(prof)
+    if discrepancies:
+        for d in discrepancies:
+            st.error(f"⚠️ **Discrepancy Detected [{d.severity}] in `{d.field_name}`:** {d.explanation} (Source: `{d.source_document}`)")
     else:
-        st.success("✅ Document Cross-Verification Succeeded: 100% data consistency between declared citizen profile and certified documents.")
+        st.success("✅ **Zero Cross-Document Discrepancies**: 100% data consistency verified across Aadhaar, 12th Marksheet, Revenue Income Certificate, Caste Certificate, and Bank Passbook.")
 
 
 # ==================== TAB 2: SCHOLARSHIP DISCOVERY ====================
@@ -315,23 +352,18 @@ with tab_runner:
     )
     target_scheme_obj = next(a.scheme for a in assessments if a.scheme.scheme_name == selected_scheme_for_run)
 
-    portal_url_to_use = EMULATOR_BASE_URL + "/register"
-    if "scholarships.gov.in" in selected_portal:
-        portal_url_to_use = LIVE_PORTALS["NSP"]["reg_url"]
-    elif "ssp.karnataka" in selected_portal:
-        portal_url_to_use = LIVE_PORTALS["SSP_KA"]["url"]
-
-    auto_solve = ("Auto-HITL" in automation_mode)
+    portal_url_to_use = EMULATOR_BASE_URL + "/register" if execution_mode == ExecutionMode.TEST_EMULATOR else "https://scholarships.gov.in"
 
     col_btn, col_info = st.columns([1, 3])
     with col_btn:
         start_exec = st.button("🚀 Launch SevaAgent Application Runner", type="primary", use_container_width=True)
 
     with col_info:
-        st.caption(f"Target: `{portal_url_to_use}` | Mode: {'100% Autonomous (Demo Auto-HITL)' if auto_solve else 'Human-in-the-Loop on CAPTCHA/OTP'}")
+        st.caption(f"Target: `{portal_url_to_use}` | Mode: `{execution_mode.value}` | Security Gate: {'Auto-Solve (Demo)' if auto_solve_hitl else 'Human-in-the-Loop on CAPTCHA/OTP'}")
 
     if start_exec:
-        ensure_portal_server_running()
+        if execution_mode == ExecutionMode.TEST_EMULATOR:
+            ensure_portal_server_running()
 
         status_card = st.container()
         with status_card:
@@ -379,13 +411,20 @@ with tab_runner:
                     graph.run(
                         profile=st.session_state["profile"],
                         selected_scheme_id=target_scheme_obj.scheme_id,
-                        auto_solve_hitl=auto_solve,
-                        portal_url=portal_url_to_use,
+                        execution_mode=execution_mode,
+                        simulate_adaptive_recovery=trigger_layout_shift,
+                        auto_solve_hitl=auto_solve_hitl,
                         on_step=on_agent_update
                     )
                 )
             progress_bar.progress(1.0)
             st.session_state["last_state"] = final_state
+            st.session_state["audit_ledger"] = graph.audit
+            status_box.success("🎉 SevaAgent Application Execution Finished Successfully!")
+        except Exception as ex:
+            status_box.error(f"Execution Error: {str(ex)}")
+        finally:
+            loop.close()
             st.session_state["audit_ledger"] = graph.audit
             status_box.success("🎉 SevaAgent Application Execution Finished Successfully!")
         except Exception as ex:
@@ -437,7 +476,7 @@ with tab_audit:
                 ledger.chain = [AuditBlock(**b) for b in data]
 
     if ledger and ledger.chain:
-        is_valid, verify_msg = ledger.verify_chain_integrity()
+        is_valid, verify_msg, bad_pos = ledger.verify_chain_integrity()
         if is_valid:
             st.markdown(f'<div class="audit-verified">🔒 CRYPTOGRAPHICALLY VERIFIED: {verify_msg}</div>', unsafe_allow_html=True)
         else:
@@ -445,7 +484,7 @@ with tab_audit:
 
         st.markdown(f"**Session ID:** `{ledger.session_id}` | **Total Chained Blocks:** `{len(ledger.chain)}` | **Genesis Anchor:** `{TamperEvidentAuditLedger.GENESIS_HASH[:16]}...`")
 
-        col_inspect, col_download = st.columns([3, 1])
+        col_inspect, col_download, col_tamper = st.columns([2, 1, 1])
         with col_download:
             st.download_button(
                 "📥 Export Full Audit Ledger (JSON)",
@@ -453,26 +492,33 @@ with tab_audit:
                 file_name=f"audit_trail_{ledger.session_id}.json",
                 mime="application/json"
             )
+        with col_tamper:
+            if st.button("🧪 Simulate Tampering Attack", help="Mutates a block to demonstrate real-time cryptographic tamper detection."):
+                if len(ledger.chain) > 2:
+                    ledger.chain[1].action_record.execution_result = "INJECTED_FORGED_PAYLOAD"
+                    t_valid, t_msg, t_idx = ledger.verify_chain_integrity()
+                    st.error(f"🚨 TAMPER DETECTION DEMO: Chain broken! {t_msg}")
 
         st.markdown("##### ⛓️ Block Chain Explorer")
         for blk in reversed(ledger.chain):
             rec = blk.action_record
-            with st.expander(f"Block #{blk.block_index} | [{rec.action_type.value}] {rec.agent_name} - {rec.rationale[:60]}..."):
+            dec = rec.decision
+            with st.expander(f"Block #{blk.block_index} | [{dec.action_type.value}] {rec.agent_name} - {dec.target_description}"):
                 c1, c2 = st.columns([2, 1])
                 with c1:
                     st.write(f"**Timestamp UTC:** `{blk.timestamp_utc}`")
-                    st.write(f"**Action Rationale:** {rec.rationale}")
-                    st.write(f"**Result:** {rec.result}")
-                    if rec.target_selector:
-                        st.write(f"**Target Selector:** `{rec.target_selector}`")
-                    if rec.value_masked:
-                        st.write(f"**Value (Masked):** `{rec.value_masked}`")
+                    st.write(f"**Action Rationale:** {dec.rationale}")
+                    st.write(f"**Result:** {rec.execution_result}")
+                    st.write(f"**Locator:** `{dec.locator_strategy.value} -> {dec.locator_value}`")
+                    if dec.masked_value:
+                        st.write(f"**Value (Masked):** `{dec.masked_value}`")
                     st.write(f"**Block Hash (SHA-256):** `{blk.block_hash}`")
                     st.write(f"**Previous Hash:** `{blk.previous_block_hash}`")
                 with c2:
                     if rec.screenshot_path and os.path.exists(rec.screenshot_path):
-                        st.image(rec.screenshot_path, caption=f"Block #{blk.block_index} Artifact", use_container_width=True)
-                        st.caption(f"SHA-256: `{blk.screenshot_hash[:16]}...`")
+                        st.image(rec.screenshot_path, caption=f"Block #{blk.block_index} Screenshot", use_container_width=True)
+                        if blk.screenshot_hash:
+                            st.caption(f"SHA-256: `{blk.screenshot_hash[:16]}...`")
     else:
         st.info("No active audit ledger session yet. Run an application in Tab 3 to generate the cryptographic audit chain.")
 

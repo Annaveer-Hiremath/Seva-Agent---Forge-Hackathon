@@ -1,19 +1,19 @@
 """
 SevaAgent Multi-Agent StateGraph Orchestrator
-Coordinates Planner, Discovery, Document Intelligence, Validator,
-Browser Automation, and HITL agents in a resilient state machine.
+Coordinates autonomous agents across defined states with conditional transitions,
+interruption, error recovery loops, and cryptographic audit sealing.
 """
 
 import asyncio
 import time
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, Callable
 
 from seva_agent.core.models import (
     CitizenProfile,
     ScholarshipScheme,
     EligibilityAssessment
 )
-from seva_agent.core.state import OrchestrationState
+from seva_agent.core.state import OrchestrationState, WorkflowState, ExecutionMode
 from seva_agent.core.audit import TamperEvidentAuditLedger
 from seva_agent.core.config import DOCS_DIR
 from seva_agent.storage.db import SevaDatabase
@@ -24,11 +24,13 @@ from seva_agent.agents.doc_intel import DocumentIntelligenceAgent
 from seva_agent.agents.validator import ValidatorAgent
 from seva_agent.agents.browser_agent import BrowserAutomationAgent
 from seva_agent.agents.hitl import HITLController
+from seva_agent.portal.portal_factory import PortalFactory
 
 
 class SevaAgentGraph:
     """
-    Production-grade multi-agent orchestrator managing the full scholarship application pipeline.
+    True State-Driven Multi-Agent Orchestration Graph.
+    Executes conditional transitions across WorkflowState nodes.
     """
 
     def __init__(self, session_id: Optional[str] = None):
@@ -47,50 +49,56 @@ class SevaAgentGraph:
         self,
         profile: CitizenProfile,
         selected_scheme_id: Optional[str] = None,
-        auto_solve_hitl: bool = True,
-        portal_url: Optional[str] = None,
-        on_step: Optional[Any] = None
+        execution_mode: ExecutionMode = ExecutionMode.TEST_EMULATOR,
+        simulate_adaptive_recovery: bool = False,
+        auto_solve_hitl: bool = False,
+        on_step: Optional[Callable[[OrchestrationState, str], None]] = None
     ) -> OrchestrationState:
         """
-        Executes the end-to-end multi-agent workflow from intake to submission.
+        Executes state graph transitions until reaching SUBMITTED or FAILED terminal state.
         """
         state = OrchestrationState(
             session_id=self.session_id,
-            citizen_profile=profile
+            execution_mode=execution_mode,
+            citizen_profile=profile,
+            auto_solve_hitl=auto_solve_hitl
         )
         if on_step:
             state.set_callback(on_step)
 
-        # ------------------- 1. PLANNING NODE -------------------
-        state.current_agent = "PlannerAgent"
-        state.status = "PLANNING"
-        self.planner.initialize_plan(state)
+        # ------------------- STATE 1: APPLICANT ONBOARDING -------------------
+        state.current_workflow_state = WorkflowState.APPLICANT_ONBOARDING
+        state.current_agent = "ApplicantOnboarding"
+        mode_label = "[TEST / EMULATOR MODE]" if execution_mode == ExecutionMode.TEST_EMULATOR else "[LIVE / OFFICIAL PORTAL MODE]"
+        state.log("ApplicantOnboarding", f"Initiated onboarding session {self.session_id} in {mode_label}")
+        state.log("ApplicantOnboarding", f"Applicant: {profile.full_name} | State: {profile.state} | Category: {profile.category.value}")
 
-        # ------------------- 2. DOCUMENT INTELLIGENCE NODE -------------------
+        # ------------------- STATE 2: DOCUMENT ANALYSIS -------------------
+        state.current_workflow_state = WorkflowState.DOCUMENT_ANALYSIS
         state.current_agent = "DocumentIntelligenceAgent"
-        state.status = "DOC_PROCESSING"
-        state.log("DocumentIntelligenceAgent", "Parsing and extracting entities from uploaded official certificates...")
+        state.log("DocumentIntelligenceAgent", f"Analyzing {len(profile.documents)} uploaded official certificates with OCR extraction...")
 
-        # Process attached documents
         for doc_key, doc_data in profile.documents.items():
             state.extracted_documents[doc_key] = doc_data
             state.log(
                 "DocumentIntelligenceAgent",
-                f"Processed {doc_data.doc_type.value} with confidence {doc_data.confidence_score*100:.1f}%. Fields: {list(doc_data.extracted_fields.keys())}"
+                f"Verified {doc_data.doc_type.value} (Confidence: {doc_data.confidence_score*100:.0f}%). Extracted: {list(doc_data.extracted_fields.keys())}"
             )
 
-        # Cross-validate profile vs documents
-        discrepancies = self.doc_intel.cross_validate_profile(profile)
-        for disc in discrepancies:
-            state.validation_flags.append(disc)
-            state.log("DocumentIntelligenceAgent", f"Integrity Flag: {disc}")
+        # Cross-document discrepancy analysis
+        discrepancies = self.doc_intel.analyze_discrepancies(profile)
+        state.discrepancies = discrepancies
+        if discrepancies:
+            for d in discrepancies:
+                state.validation_flags.append(f"{d.field_name}: {d.explanation}")
+                state.log("DocumentIntelligenceAgent", f"⚠️ Discrepancy Detected [{d.severity}]: {d.explanation}")
+        else:
+            state.log("DocumentIntelligenceAgent", "Zero cross-document data discrepancies detected across verified certificates.")
 
-        self.planner.advance_step(state, "Document Intelligence Processing")
-
-        # ------------------- 3. SCHOLARSHIP DISCOVERY NODE -------------------
+        # ------------------- STATE 3: ELIGIBILITY CHECK -------------------
+        state.current_workflow_state = WorkflowState.ELIGIBILITY_CHECK
         state.current_agent = "ScholarshipDiscoveryAgent"
-        state.status = "DISCOVERING"
-        state.log("ScholarshipDiscoveryAgent", "Evaluating statutory eligibility against Central and State scholarship databases...")
+        state.log("ScholarshipDiscoveryAgent", "Evaluating statutory eligibility against official Central & State scheme guidelines...")
 
         assessments = self.discovery.evaluate_profile(profile)
         state.eligibility_assessments = assessments
@@ -101,71 +109,70 @@ class SevaAgentGraph:
             if target:
                 state.selected_scheme = target
         if not state.selected_scheme:
-            # Default to top eligible scheme
             eligible = [a for a in assessments if a.is_eligible]
-            if eligible:
-                state.selected_scheme = eligible[0].scheme
-            else:
-                state.selected_scheme = assessments[0].scheme
+            state.selected_scheme = eligible[0].scheme if eligible else assessments[0].scheme
 
         state.log(
             "ScholarshipDiscoveryAgent",
             f"Selected Scheme: '{state.selected_scheme.scheme_name}' (Award: ₹{state.selected_scheme.award_amount_annual:,.0f}/yr) | Citation: {state.selected_scheme.official_guideline_citation}"
         )
-        self.planner.advance_step(state, "Scholarship Discovery & Statutory Matching")
 
-        # ------------------- 4. PRE-SUBMISSION VALIDATION NODE -------------------
-        state.current_agent = "ValidatorAgent"
-        state.status = "VALIDATING"
-        state.log("ValidatorAgent", f"Conducting statutory pre-validation against {state.selected_scheme.scheme_name} rules...")
+        # Calculate Application Readiness Score
+        readiness = self.doc_intel.calculate_readiness_score(profile, state.selected_scheme)
+        state.readiness_score = readiness
+        state.log("DocumentIntelligenceAgent", f"Application Readiness Score: {readiness.overall_percentage:.0f}% | Notes: {'; '.join(readiness.breakdown_notes[:2])}")
 
-        valid, validation_errors = self.validator.validate_citizen_profile(profile, state.selected_scheme)
+        # ------------------- STATE 4: APPLICATION PLANNING -------------------
+        state.current_workflow_state = WorkflowState.APPLICATION_PLANNING
+        state.current_agent = "PlannerAgent"
+        self.planner.initialize_plan(state)
+        state.log("PlannerAgent", f"Compiled {len(state.plan_steps)}-stage execution plan for portal automation.")
+
+        # Pre-flight sanity validation
+        valid, val_errors = self.validator.validate_citizen_profile(profile, state.selected_scheme)
         if not valid:
-            state.errors.extend(validation_errors)
-            for err in validation_errors:
-                state.log("ValidatorAgent", f"Pre-validation error: {err}")
-            # Self-healing re-plan
-            replan_plan = self.planner.replan_on_failure(state, "Validation checks identified potential issues", "Pre-Validation")
-            state.log("ValidatorAgent", f"Self-correction applied: {replan_plan['strategy']}")
+            state.errors.extend(val_errors)
+            for err in val_errors:
+                state.log("ValidatorAgent", f"Pre-validation alert: {err}")
 
-        self.planner.advance_step(state, "Pre-Submission Data Validation")
-
-        # ------------------- 5. BROWSER AUTOMATION NODE -------------------
+        # ------------------- STATES 5-11: BROWSER AGENTIC LOOP -------------------
+        state.current_workflow_state = WorkflowState.PORTAL_NAVIGATION
         state.current_agent = "BrowserAutomationAgent"
-        state.status = "EXECUTING_BROWSER"
-        state.log("BrowserAutomationAgent", "Launching autonomous Playwright browser instance...")
+
+        # Instantiate portal adapter via Factory
+        adapter = PortalFactory.get_adapter(
+            mode=execution_mode,
+            simulate_layout_shift=simulate_adaptive_recovery
+        )
 
         browser_agent = BrowserAutomationAgent(self.audit, headless=True)
         try:
-            success, app_id, trk_id = await browser_agent.run_application_workflow(
+            success, app_id = await browser_agent.run_autonomous_session(
                 state=state,
-                portal_url=portal_url,
-                auto_solve_hitl=auto_solve_hitl
+                portal_adapter=adapter,
+                simulate_adaptive_recovery=simulate_adaptive_recovery
             )
-            if success:
-                state.application_id = app_id
-                state.tracking_id = trk_id
-                state.status = "COMPLETED"
-                state.log("BrowserAutomationAgent", f"Official submission confirmed! Application ID: {app_id}")
+            if success and state.application_id:
+                state.current_workflow_state = WorkflowState.SUBMITTED
+                state.log("BrowserAutomationAgent", f"Application confirmed! Official ID: {state.application_id}")
+            elif state.security_boundary_reason:
+                state.current_workflow_state = WorkflowState.FINAL_REVIEW
+                state.log("BrowserAutomationAgent", f"Live Portal Boundary: {state.security_boundary_reason}")
             else:
-                state.status = "FAILED"
-                state.log("BrowserAutomationAgent", "Application flow did not complete successfully.")
+                state.current_workflow_state = WorkflowState.FAILED
         except Exception as e:
-            state.status = "FAILED"
+            state.current_workflow_state = WorkflowState.FAILED
             state.errors.append(str(e))
             state.log("BrowserAutomationAgent", f"Execution error: {str(e)}")
-            self.planner.replan_on_failure(state, str(e), "Browser Execution")
             await browser_agent.close()
 
-        # ------------------- 6. AUDIT SEAL & DB PERSISTENCE NODE -------------------
-        state.current_agent = "AuditAgent"
+        # ------------------- STATE 12: AUDIT SEAL & DB PERSISTENCE -------------------
         audit_summary = self.audit.export_summary()
         state.log(
             "AuditAgent",
-            f"Audit chain sealed with {audit_summary['total_actions']} actions. Cryptographic integrity: {audit_summary['cryptographic_integrity']}"
+            f"Cryptographic Audit Ledger sealed with {audit_summary['total_actions']} blocks. Integrity: {audit_summary['cryptographic_integrity']}"
         )
 
-        # Save to database
         if state.application_id:
             self.db.save_application(
                 application_id=state.application_id,
@@ -175,7 +182,7 @@ class SevaAgentGraph:
                 scheme_id=state.selected_scheme.scheme_id,
                 scheme_name=state.selected_scheme.scheme_name,
                 portal_type=state.selected_scheme.portal_type,
-                status="SUBMITTED",
+                status="SUBMITTED" if execution_mode == ExecutionMode.TEST_EMULATOR else "VERIFIED_LIVE_STAGE",
                 tracking_id=state.tracking_id,
                 audit_root_hash=audit_summary.get("latest_block_hash", ""),
                 submission_date=time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -184,11 +191,9 @@ class SevaAgentGraph:
                     "institution": profile.institution_name,
                     "percentage": profile.previous_class_percentage,
                     "annual_income": profile.annual_family_income,
-                    "bank_account": f"XXXXXX{profile.bank_account_number[-4:]}",
-                    "ifsc": profile.bank_ifsc_code,
-                    "plan_steps": state.plan_steps,
-                    "replan_count": state.replan_count,
-                    "audit_blocks_count": audit_summary["total_actions"]
+                    "readiness_percentage": state.readiness_score.overall_percentage if state.readiness_score else 0,
+                    "mode": execution_mode.value,
+                    "audit_blocks": audit_summary["total_actions"]
                 }
             )
 

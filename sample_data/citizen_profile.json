@@ -1,4 +1,69 @@
 {
+  "provenance": {
+    "full_name": {
+      "field_name": "full_name",
+      "value": "Priya Ramesh Sharma",
+      "source_document": "aadhaar_card.png",
+      "extraction_method": "OCR_LAYOUT",
+      "confidence": 0.92,
+      "verification_status": "CONFIRMED_BY_APPLICANT",
+      "notes": "SYNTHETIC TEST DATA"
+    },
+    "aadhaar_number": {
+      "field_name": "aadhaar_number",
+      "value": "541288913920",
+      "source_document": "aadhaar_card.png",
+      "extraction_method": "OCR_LAYOUT",
+      "confidence": 0.95,
+      "verification_status": "CONFIRMED_BY_APPLICANT",
+      "notes": "SYNTHETIC TEST DATA"
+    },
+    "date_of_birth": {
+      "field_name": "date_of_birth",
+      "value": "2005-04-14",
+      "source_document": "aadhaar_card.png",
+      "extraction_method": "OCR_LAYOUT",
+      "confidence": 0.9,
+      "verification_status": "CONFIRMED_BY_APPLICANT",
+      "notes": null
+    },
+    "annual_family_income": {
+      "field_name": "annual_family_income",
+      "value": 180000.0,
+      "source_document": "income_certificate.png",
+      "extraction_method": "OCR_LAYOUT",
+      "confidence": 0.95,
+      "verification_status": "CONFIRMED_BY_APPLICANT",
+      "notes": "Certified by Tahsildar, Bengaluru North"
+    },
+    "previous_class_percentage": {
+      "field_name": "previous_class_percentage",
+      "value": 88.5,
+      "source_document": "marksheet_12th.png",
+      "extraction_method": "OCR_LAYOUT",
+      "confidence": 0.95,
+      "verification_status": "CONFIRMED_BY_APPLICANT",
+      "notes": "PUC Board SSLC/Class 12 Distinction"
+    },
+    "bank_account_number": {
+      "field_name": "bank_account_number",
+      "value": "38920194819",
+      "source_document": "bank_passbook.png",
+      "extraction_method": "OCR_LAYOUT",
+      "confidence": 0.92,
+      "verification_status": "CONFIRMED_BY_APPLICANT",
+      "notes": "State Bank of India (DBT Enabled)"
+    },
+    "bank_ifsc_code": {
+      "field_name": "bank_ifsc_code",
+      "value": "SBIN0001248",
+      "source_document": "bank_passbook.png",
+      "extraction_method": "OCR_LAYOUT",
+      "confidence": 0.98,
+      "verification_status": "CONFIRMED_BY_APPLICANT",
+      "notes": null
+    }
+  },
   "full_name": "Priya Ramesh Sharma",
   "date_of_birth": "2005-04-14",
   "gender": "FEMALE",
@@ -43,7 +108,7 @@
       "confidence_score": 0.9,
       "extracted_fields": {
         "aadhaar_number": "541288913920",
-        "name": "Priya Ramesh Sharma\nDOB",
+        "name": "Priya Ramesh Sharma",
         "dob": "2005-04-14",
         "gender": "FEMALE"
       },
@@ -51,7 +116,8 @@
       "is_verified": true,
       "validation_notes": [
         "Aadhaar 12-digit format verified"
-      ]
+      ],
+      "sha256_hash": null
     },
     "INCOME_CERTIFICATE": {
       "doc_type": "INCOME_CERTIFICATE",
@@ -64,7 +130,8 @@
       },
       "raw_text": "GOVERNMENT OF KARNATAKA - REVENUE DEPARTMENT\nOFFICE OF THE TAHSILDAR, BENGALURU NORTH\n\nCertificate No: RD0038291024\nDate of Issue: 12-07-2025\n\nThis is to certify that Kum. Priya Ramesh Sharma d/o Sri Ramesh Sharma,\nresiding at Bengaluru, Karnataka, has an Annual Family Income of\nRs. 1,80,000 (Rupees One Lakh Eighty Thousand Only) from all sources.\n\nIssuing Authority: Tahsildar, Bengaluru North Taluk\n",
       "is_verified": true,
-      "validation_notes": []
+      "validation_notes": [],
+      "sha256_hash": null
     },
     "CASTE_CERTIFICATE": {
       "doc_type": "CASTE_CERTIFICATE",
@@ -76,7 +143,8 @@
       },
       "raw_text": "GOVERNMENT OF KARNATAKA\nBACKWARD CLASSES WELFARE DEPARTMENT\n\nRD No: CST/2025/77810\nDate: 15-06-2025\n\nCertificate of Caste & Community:\nThis is to certify that Priya Ramesh Sharma belongs to Other Backward Classes (OBC - Category 2A),\nrecognized under Govt of Karnataka Resolution SWD 28 BCA 2012.\n",
       "is_verified": true,
-      "validation_notes": []
+      "validation_notes": [],
+      "sha256_hash": null
     },
     "MARKSHEET_12TH": {
       "doc_type": "MARKSHEET_12TH",
@@ -91,7 +159,8 @@
       "is_verified": true,
       "validation_notes": [
         "Class 12 verified merit: 88.5%"
-      ]
+      ],
+      "sha256_hash": null
     },
     "BANK_PASSBOOK": {
       "doc_type": "BANK_PASSBOOK",
@@ -106,7 +175,26 @@
       "is_verified": true,
       "validation_notes": [
         "Valid RBI IFSC checksum pattern: SBIN0001248"
-      ]
+      ],
+      "sha256_hash": null
     }
+  },
+  "discrepancies": [],
+  "readiness": {
+    "overall_percentage": 100.0,
+    "personal_details_complete": true,
+    "academic_details_complete": true,
+    "financial_details_complete": true,
+    "required_documents_uploaded": true,
+    "discrepancies_resolved": true,
+    "statutory_eligibility_passed": false,
+    "missing_critical_documents": [],
+    "breakdown_notes": [
+      "Personal details and 12-digit Aadhaar verified.",
+      "Academic qualifications and roll number verified.",
+      "DBT bank account and annual income declared.",
+      "All 5 core supporting documents uploaded.",
+      "Zero cross-document data discrepancies detected."
+    ]
   }
 }
