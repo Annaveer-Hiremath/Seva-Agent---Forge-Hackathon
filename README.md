@@ -200,4 +200,4 @@ $$\text{Block Hash}_i = \text{SHA256}\Big(i \parallel \text{Timestamp} \parallel
 
 ## 📄 License & Attribution
 
-This project is licensed under the MIT License. Developed by **Annaveer Hiremath** for the Forge Hackathon.
+This project is licensed under the MIT License. Developed by **Annaveereshwar Hiremath** for the Forge Hackathon.
