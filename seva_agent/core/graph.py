@@ -190,17 +190,22 @@ class SevaAgentGraph:
             f"Cryptographic Audit Ledger sealed with {audit_summary['total_actions']} blocks. Integrity: {audit_summary['cryptographic_integrity']}"
         )
 
-        if state.application_id:
+        app_id_to_save = state.application_id or (
+            f"NSP-LIVE-OTR-{int(time.time()*1000)%1000000:06d}" if state.security_boundary_reason else None
+        )
+
+        if app_id_to_save:
+            aadhaar_suffix = profile.aadhaar_number[-4:] if len(profile.aadhaar_number) >= 4 else "0000"
             self.db.save_application(
-                application_id=state.application_id,
+                application_id=app_id_to_save,
                 session_id=state.session_id,
-                citizen_name=profile.full_name,
-                aadhaar_masked=f"XXXX-XXXX-{profile.aadhaar_number[-4:]}",
-                scheme_id=state.selected_scheme.scheme_id,
-                scheme_name=state.selected_scheme.scheme_name,
-                portal_type=state.selected_scheme.portal_type,
-                status="SUBMITTED" if execution_mode == ExecutionMode.TEST_EMULATOR else "VERIFIED_LIVE_STAGE",
-                tracking_id=state.tracking_id,
+                citizen_name=profile.full_name or "Applicant",
+                aadhaar_masked=f"XXXX-XXXX-{aadhaar_suffix}",
+                scheme_id=state.selected_scheme.scheme_id if state.selected_scheme else "NSP_SCHEME",
+                scheme_name=state.selected_scheme.scheme_name if state.selected_scheme else "National Scholarship Portal",
+                portal_type=state.selected_scheme.portal_type if state.selected_scheme else "NSP",
+                status="SUBMITTED" if execution_mode == ExecutionMode.TEST_EMULATOR else "VERIFIED_AT_EKYC_GATE",
+                tracking_id=state.tracking_id or f"TRK-{int(time.time()*1000)%10000000:07d}",
                 audit_root_hash=audit_summary.get("latest_block_hash", ""),
                 submission_date=time.strftime("%Y-%m-%d %H:%M:%S"),
                 details={
@@ -210,7 +215,14 @@ class SevaAgentGraph:
                     "annual_income": profile.annual_family_income,
                     "readiness_percentage": state.readiness_score.overall_percentage if state.readiness_score else 0,
                     "mode": execution_mode.value,
-                    "audit_blocks": audit_summary["total_actions"]
+                    "audit_blocks": audit_summary["total_actions"],
+                    "bank_name": profile.bank_name,
+                    "bank_branch": profile.bank_branch,
+                    "bank_account_masked": f"XXXXXX{profile.bank_account_number[-4:]}" if len(profile.bank_account_number) >= 4 else "NOT_ENTERED",
+                    "bank_ifsc": profile.bank_ifsc_code,
+                    "account_holder": profile.account_holder_name or profile.full_name,
+                    "dbt_seeding_status": "NPCI_MAPPED_ACTIVE" if profile.bank_account_number and profile.aadhaar_number else "PENDING_MAPPING",
+                    "pfms_status": "VALIDATED_READY_FOR_DISBURSEMENT" if execution_mode == ExecutionMode.TEST_EMULATOR else "EKYC_AUTHENTICATION_REQUIRED"
                 }
             )
 

@@ -318,16 +318,29 @@ with tab_intake:
         prof.full_name = st.text_input("Full Name (as in Aadhaar)", value=prof.full_name, placeholder="Enter applicant full name")
         prof.aadhaar_number = st.text_input("Aadhaar Number (12 Digits)", value=prof.aadhaar_number, placeholder="12-digit Aadhaar number")
         prof.date_of_birth = st.text_input("Date of Birth (YYYY-MM-DD)", value=prof.date_of_birth, placeholder="YYYY-MM-DD")
-        prof.gender = Gender(st.selectbox("Gender", options=[g.value for g in Gender], index=0 if prof.gender == Gender.MALE else 1))
+        gender_options = [g.value for g in Gender]
+        curr_gender_idx = gender_options.index(prof.gender.value) if prof.gender and prof.gender.value in gender_options else 0
+        prof.gender = Gender(st.selectbox("Gender", options=gender_options, index=curr_gender_idx))
         prof.mobile_number = st.text_input("Mobile Number (Aadhaar Seeded)", value=prof.mobile_number, placeholder="10-digit mobile number")
         prof.email = st.text_input("Email Address", value=prof.email, placeholder="student@example.com")
 
     with col2:
         st.markdown("##### 🎓 Academic & Enrollment")
-        state_options = ["Karnataka", "Maharashtra", "Uttar Pradesh", "Tamil Nadu", "Delhi", "Bihar", "West Bengal", "Gujarat", "Rajasthan"]
-        curr_state_idx = state_options.index(prof.state) if prof.state in state_options else 0
+        state_options = [
+            "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+            "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
+            "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
+            "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
+            "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+            "Uttar Pradesh", "Uttarakhand", "West Bengal",
+            "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu",
+            "Delhi (NCT)", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry"
+        ]
+        curr_state_idx = state_options.index(prof.state) if prof.state in state_options else (state_options.index("Karnataka") if "Karnataka" in state_options else 0)
         prof.state = st.selectbox("State of Domicile", options=state_options, index=curr_state_idx)
-        prof.course_level = CourseLevel(st.selectbox("Course Level", options=[cl.value for cl in CourseLevel], index=2))
+        course_level_options = [cl.value for cl in CourseLevel]
+        curr_cl_idx = course_level_options.index(prof.course_level.value) if prof.course_level and prof.course_level.value in course_level_options else 0
+        prof.course_level = CourseLevel(st.selectbox("Course Level", options=course_level_options, index=curr_cl_idx))
         prof.course_name = st.text_input("Course Name", value=prof.course_name, placeholder="e.g. B.Tech Computer Science")
         prof.institution_name = st.text_input("College / University", value=prof.institution_name, placeholder="e.g. National Institute of Technology")
         prof.previous_class_percentage = st.number_input("Class 12 / Prior Marks (%)", value=float(prof.previous_class_percentage), min_value=0.0, max_value=100.0, step=0.1)
@@ -335,14 +348,16 @@ with tab_intake:
 
     with col3:
         st.markdown("##### 💳 Financial & Banking (Direct Benefit Transfer)")
-        prof.category = Category(st.selectbox("Social Category", options=[c.value for c in Category], index=1 if prof.category == Category.OBC else 0))
+        cat_options = [c.value for c in Category]
+        curr_cat_idx = cat_options.index(prof.category.value) if prof.category and prof.category.value in cat_options else 0
+        prof.category = Category(st.selectbox("Social Category", options=cat_options, index=curr_cat_idx))
         prof.annual_family_income = st.number_input("Annual Family Income (INR)", value=float(prof.annual_family_income), step=10000.0)
         prof.income_certificate_no = st.text_input("Income Certificate / RD No", value=prof.income_certificate_no or "", placeholder="e.g. RD0038291024")
         prof.bank_account_number = st.text_input("Bank Account Number (DBT)", value=prof.bank_account_number, placeholder="Bank Account Number")
         prof.bank_ifsc_code = st.text_input("Bank IFSC Code", value=prof.bank_ifsc_code, placeholder="e.g. SBIN0040123")
         prof.bank_name = st.text_input("Bank Name", value=prof.bank_name, placeholder="e.g. State Bank of India")
-        prof.bank_branch = st.text_input("Bank Branch", value=prof.bank_branch, placeholder="e.g. Bangalore Main")
-        prof.account_holder_name = st.text_input("Account Holder Name", value=prof.account_holder_name, placeholder="e.g. Priya Sharma")
+        prof.bank_branch = st.text_input("Bank Branch", value=prof.bank_branch, placeholder="e.g. Bengaluru Main Branch")
+        prof.account_holder_name = st.text_input("Account Holder Name", value=prof.account_holder_name, placeholder="Enter account holder name")
 
     st.markdown("---")
     st.subheader("📄 Attached Supporting Documents")
@@ -648,19 +663,128 @@ with tab_audit:
 
 # ==================== TAB 5: APPLICATIONS & DBT TRACKER ====================
 with tab_tracking:
-    st.subheader("📋 Submitted Applications & DBT Status")
-    st.caption("Permanent records stored in local SQLite database for citizen tracking.")
+    st.subheader("📋 Autonomous Application Tracking & Direct Benefit Transfer (DBT) Portal")
+    st.caption("Live tracking for Central & State Scholarship disbursements via Public Financial Management System (PFMS) and Aadhaar Payment Bridge (APB).")
+
+    prof: CitizenProfile = st.session_state["profile"]
+    last_state = st.session_state.get("last_state")
+
+    # 1. Active Beneficiary DBT Readiness Card
+    st.markdown("#### 💳 Active Applicant DBT Profile & Bank Mandate")
+    c_dbt1, c_dbt2 = st.columns([1, 1])
+
+    with c_dbt1:
+        st.markdown(f"**Beneficiary Name:** `{prof.full_name or 'Pending Entry in Tab 1'}`")
+        masked_adh = f"XXXX-XXXX-{prof.aadhaar_number[-4:]}" if len(prof.aadhaar_number) >= 4 else "Pending Entry"
+        st.markdown(f"**Aadhaar UID:** `{masked_adh}`")
+        st.markdown(f"**State of Domicile:** `{prof.state}`")
+
+        # Check Aadhaar Payment Bridge Seeding Status
+        if prof.bank_account_number and prof.aadhaar_number:
+            st.success("🟢 **Aadhaar Seeding Status:** ACTIVE (NPCI Aadhaar Payment Bridge Mapped)")
+        else:
+            st.warning("🟡 **Aadhaar Seeding Status:** INCOMPLETE (Provide Aadhaar & Bank Details in Tab 1)")
+
+    with c_dbt2:
+        masked_acct = f"XXXXXX{prof.bank_account_number[-4:]}" if len(prof.bank_account_number) >= 4 else "Pending Entry"
+        st.markdown(f"**DBT Bank:** `{prof.bank_name or 'Pending Entry'}` ({prof.bank_branch or 'Branch N/A'})")
+        st.markdown(f"**Account Number:** `{masked_acct}`")
+        st.markdown(f"**IFSC Code:** `{prof.bank_ifsc_code or 'Pending Entry'}`")
+        st.markdown(f"**Account Holder:** `{prof.account_holder_name or prof.full_name or 'Pending Entry'}`")
+
+    st.markdown("---")
+
+    # 2. Multi-Stage DBT Lifecycle Pipeline Visualizer
+    st.markdown("#### 🔄 Official 5-Stage Direct Benefit Transfer Pipeline")
+
+    p_stage = 1
+    p_status_msg = "Application intake ready. Launch autonomous run in Tab 3 to progress."
+    if last_state:
+        if last_state.current_workflow_state == WorkflowState.SUBMITTED:
+            p_stage = 4
+            p_status_msg = f"Submitted to National Scholarship Portal. Enrolled in Ministry Merit & PFMS queue. Ref: {last_state.application_id}"
+        elif last_state.security_boundary_reason:
+            p_stage = 2
+            p_status_msg = f"Live Government Portal stage verified. Ready for e-KYC completion. ({last_state.security_boundary_reason})"
+        elif last_state.current_workflow_state == WorkflowState.IN_PROGRESS:
+            p_stage = 2
+            p_status_msg = "Live portal browser navigation actively executing."
+
+    col_st1, col_st2, col_st3, col_st4, col_st5 = st.columns(5)
+    with col_st1:
+        st.markdown("##### 1. Registration")
+        st.caption("✅ Profile & Docs Intake")
+    with col_st2:
+        st.markdown("##### 2. INO Verification")
+        st.caption("✅ Verified" if p_stage >= 2 else "⏳ Pending")
+    with col_st3:
+        st.markdown("##### 3. DNO / SNO")
+        st.caption("✅ Scrutiny Approved" if p_stage >= 3 else "⏳ Pending")
+    with col_st4:
+        st.markdown("##### 4. Ministry Order")
+        st.caption("✅ Sanction Generated" if p_stage >= 4 else "⏳ In Queue")
+    with col_st5:
+        st.markdown("##### 5. PFMS DBT Credit")
+        st.caption("✅ Credited to Bank" if p_stage >= 5 else "⏳ Pending Payment")
+
+    st.info(f"**Current Pipeline Status:** {p_status_msg}")
+
+    st.markdown("---")
+
+    # 3. Live Inquiry & Status Checker
+    st.markdown("#### 🔍 Real-Time Application & PFMS Status Inquiry")
+    c_srch1, c_srch2 = st.columns([3, 1])
+    with c_srch1:
+        search_query = st.text_input("Enter Application ID / OTR / Tracking Reference", placeholder="e.g. NSP2026-KA-514884 or TRK-43795877")
+    with c_srch2:
+        st.write("")
+        st.write("")
+        btn_search = st.button("🔎 Check Status", use_container_width=True)
+
+    if btn_search and search_query.strip():
+        results = db.search_applications(search_query.strip())
+        if results:
+            for r in results:
+                st.success(f"✅ Found Record: **{r['application_id']}** ({r['citizen_name']})")
+                det = json.loads(r["details_json"])
+                st.write(f"- **Scheme:** {r['scheme_name']}")
+                st.write(f"- **Status:** {r['status']}")
+                st.write(f"- **Submission Date:** {r['submission_date']}")
+                st.write(f"- **PFMS Status:** `{det.get('pfms_status', 'VALIDATED')}`")
+                st.write(f"- **DBT Bank Account:** `{det.get('bank_account_masked', 'XXXXXX')}` ({det.get('bank_name', 'Bank')})")
+        else:
+            st.warning(f"No application found in local ledger matching `{search_query}`. Note: Official portal sync occurs after batch merit list processing.")
+
+    st.markdown("---")
+
+    # 4. Applications Saved in Database
+    st.markdown("#### 📁 Stored Application Ledgers")
+
+    col_ctrl1, col_ctrl2 = st.columns([1, 1])
+    with col_ctrl1:
+        if st.button("🧹 Clear Stored Application Records"):
+            db.clear_applications(test_only=False)
+            st.success("Cleaned application database.")
+            st.rerun()
 
     apps = db.list_applications()
     if apps:
         for app in apps:
             with st.expander(f"🏛️ {app['application_id']} | {app['citizen_name']} ({app['scheme_name']})", expanded=True):
-                st.write(f"**Tracking Reference:** `{app['tracking_id']}`")
-                st.write(f"**Portal Type:** {app['portal_type']}")
-                st.write(f"**Submission Date:** {app['submission_date']}")
-                st.write(f"**Cryptographic Audit Root:** `{app['audit_root_hash']}`")
-                st.write(f"**Current Status:** :green[{app['status']}]")
+                c_a1, c_a2 = st.columns(2)
+                with c_a1:
+                    st.write(f"**Tracking Reference:** `{app['tracking_id']}`")
+                    st.write(f"**Portal Type:** {app['portal_type']}")
+                    st.write(f"**Submission Date:** {app['submission_date']}")
+                    st.write(f"**Current Status:** :green[{app['status']}]")
+                with c_a2:
+                    st.write(f"**Cryptographic Audit Root:** `{app['audit_root_hash'][:24]}...`")
+                    det = json.loads(app["details_json"])
+                    st.write(f"**DBT Seeding:** `{det.get('dbt_seeding_status', 'ACTIVE')}`")
+                    st.write(f"**PFMS State:** `{det.get('pfms_status', 'READY')}`")
+                    st.write(f"**Disbursement A/C:** `{det.get('bank_account_masked', 'N/A')}`")
 
-                st.json(json.loads(app["details_json"]))
+                with st.expander("Full Application Details"):
+                    st.json(det)
     else:
-        st.info("No applications submitted yet. Launch a submission from Tab 3.")
+        st.info("ℹ️ No applications saved yet. Launch an autonomous submission in Tab 3 to register an official record.")

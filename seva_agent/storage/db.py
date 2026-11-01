@@ -114,6 +114,40 @@ class SevaDatabase:
             rows = cursor.fetchall()
             return [dict(r) for r in rows]
 
+    def clear_applications(self, test_only: bool = False) -> int:
+        """Clear application records. If test_only is True, deletes only test/demo sessions."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            if test_only:
+                cursor.execute("DELETE FROM applications WHERE session_id LIKE 'test_%' OR session_id LIKE 'demo_%'")
+            else:
+                cursor.execute("DELETE FROM applications")
+            deleted = cursor.rowcount
+            conn.commit()
+            return deleted
+
+    def delete_application(self, application_id: str) -> bool:
+        """Delete an individual application record by ID."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM applications WHERE application_id = ?", (application_id,))
+            deleted = cursor.rowcount > 0
+            conn.commit()
+            return deleted
+
+    def search_applications(self, query: str) -> List[Dict[str, Any]]:
+        """Search applications by application ID, tracking reference, citizen name, or masked Aadhaar."""
+        q = f"%{query.strip()}%"
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM applications
+                WHERE application_id LIKE ? OR tracking_id LIKE ? OR citizen_name LIKE ? OR aadhaar_masked LIKE ?
+                ORDER BY submission_date DESC
+            """, (q, q, q, q))
+            rows = cursor.fetchall()
+            return [dict(r) for r in rows]
+
     def save_profile(self, profile_id: str, citizen_name: str, mobile: str, category: str, state: str, profile_dict: dict):
         with self._get_connection() as conn:
             cursor = conn.cursor()

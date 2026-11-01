@@ -51,6 +51,12 @@ class TestE2EApplicationFlow(unittest.TestCase):
     def tearDownClass(cls):
         if cls.server_thread:
             cls.server_thread.stop()
+        # Clean up test session records to avoid polluting production database
+        try:
+            from seva_agent.storage.db import SevaDatabase
+            SevaDatabase().clear_applications(test_only=True)
+        except Exception:
+            pass
 
     def test_full_pipeline_run(self):
         profile = create_sample_profile()
